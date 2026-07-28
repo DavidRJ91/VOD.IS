@@ -109,7 +109,7 @@ igual cuando termine.
 
 ## Limitaciones a tener en cuenta
 
-- **Duración máxima por ejecución:** 340 minutos (el límite duro de
+- **Duración máxima por ejecución:** 340 minutos (el límite de
   GitHub Actions son 360). Si te acercas, baja la calidad a 720p/1080p.
 - **Disco del runner:** unos 14 GB libres — de sobra para la mayoría de
   VODs en 1080p.
