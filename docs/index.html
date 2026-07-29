@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VOD → YouTube</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="page">
+
+  <p class="eyebrow">Panel de control</p>
+  <h1>VOD → YouTube</h1>
+  <p class="subtitle">Pega el enlace de un VOD de Twitch o Kick. Esta página lo pone en marcha; la descarga, la subida y el aviso a Discord ocurren en GitHub, no en tu navegador.</p>
+
+  <div class="stopwatch">
+    <div>
+      <div class="stopwatch-label">Tiempo transcurrido</div>
+      <div class="stopwatch-time" id="stopwatchTime">00:00</div>
+    </div>
+    <div class="stopwatch-ceiling">Tope máximo<br />del proceso: 340 min</div>
+  </div>
+
+  <div class="rail" id="rail" aria-hidden="true">
+    <div class="rail-stop">
+      <div class="lamp" id="lamp-origen"></div>
+      <span class="rail-label">Origen</span>
+    </div>
+    <div class="rail-stop">
+      <div class="lamp" id="lamp-descarga"></div>
+      <span class="rail-label">Descarga</span>
+    </div>
+    <div class="rail-stop">
+      <div class="lamp" id="lamp-youtube"></div>
+      <span class="rail-label">YouTube</span>
+    </div>
+    <div class="rail-stop">
+      <div class="lamp" id="lamp-discord"></div>
+      <span class="rail-label">Discord</span>
+    </div>
+  </div>
+
+  <form class="card" id="vodForm">
+    <div class="field">
+      <label for="vodUrl">Enlace del VOD</label>
+      <input type="url" id="vodUrl" placeholder="https://www.twitch.tv/videos/… o https://kick.com/…/videos/…" required />
+    </div>
+
+    <div class="field">
+      <label for="title">Título en YouTube</label>
+      <input type="text" id="title" placeholder="Vacío = se usa el título original del VOD" />
+    </div>
+
+    <div class="field">
+      <label for="description">Descripción</label>
+      <textarea id="description" placeholder="Vacío = se usa la descripción original"></textarea>
+    </div>
+
+    <div class="field">
+      <label>Portada del vídeo</label>
+      <div class="segmented">
+        <input type="radio" name="thumbSource" id="thumb-auto" value="auto" checked />
+        <label for="thumb-auto">Automática</label>
+        <input type="radio" name="thumbSource" id="thumb-file" value="file" />
+        <label for="thumb-file">Subir imagen</label>
+        <input type="radio" name="thumbSource" id="thumb-url" value="url" />
+        <label for="thumb-url">Desde URL</label>
+      </div>
+
+      <div class="hint" id="thumbAutoHint">Se extrae un fotograma del propio VOD (por defecto, el punto medio).</div>
+
+      <div class="thumb-file-row" id="thumbFileRow">
+        <label class="dropzone" id="dropzone" for="thumbFileInput">
+          <span class="dropzone-text"><strong>Elige una imagen</strong> o arrástrala aquí — JPG o PNG, máx. 2MB</span>
+          <input type="file" id="thumbFileInput" accept="image/jpeg,image/png" />
+        </label>
+        <div class="thumb-preview" id="thumbPreview">
+          <img id="thumbPreviewImg" alt="Vista previa de la portada" />
+          <div class="thumb-preview-info" id="thumbPreviewInfo"></div>
+          <button type="button" id="thumbPreviewRemove">Quitar</button>
+        </div>
+        <span class="hint">Se sube a tu propio repositorio para que YouTube pueda leerla, y se borra automáticamente al terminar.</span>
+      </div>
+
+      <div class="thumb-url-row" id="thumbUrlRow">
+        <input type="url" id="thumbnailUrl" placeholder="https://…/imagen.jpg" />
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Visibilidad en YouTube</label>
+      <div class="segmented">
+        <input type="radio" name="privacy" id="privacy-public" value="public" />
+        <label for="privacy-public">Público</label>
+        <input type="radio" name="privacy" id="privacy-unlisted" value="unlisted" checked />
+        <label for="privacy-unlisted">Oculto</label>
+        <input type="radio" name="privacy" id="privacy-scheduled" value="scheduled" />
+        <label for="privacy-scheduled">Programado</label>
+      </div>
+      <div class="schedule-row" id="scheduleRow">
+        <label for="scheduledAt">Fecha y hora de publicación</label>
+        <input type="datetime-local" id="scheduledAt" />
+        <span class="hint">En tu zona horaria local; se convierte a UTC automáticamente.</span>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="quality">Calidad máxima de descarga</label>
+      <select id="quality">
+        <option value="720">720p</option>
+        <option value="1080" selected>1080p</option>
+        <option value="best">Máxima disponible</option>
+      </select>
+      <span class="hint">Los runners de GitHub tienen disco y tiempo limitados; 1080p es un buen punto de partida para VODs largos.</span>
+    </div>
+
+    <div class="field">
+      <button type="submit" id="submitBtn">Enviar VOD</button>
+    </div>
+  </form>
+
+  <details class="card" id="connectionDetails">
+    <summary>Conexión con GitHub</summary>
+    <div class="details-body">
+      <div class="field">
+        <label for="ghOwner">Usuario u organización</label>
+        <input type="text" id="ghOwner" placeholder="tu-usuario" />
+      </div>
+      <div class="field">
+        <label for="ghRepo">Repositorio</label>
+        <input type="text" id="ghRepo" placeholder="vod2youtube-web" />
+      </div>
+      <div class="field">
+        <label for="ghBranch">Rama</label>
+        <input type="text" id="ghBranch" placeholder="main" value="main" />
+      </div>
+      <div class="field">
+        <label for="ghToken">Token de acceso personal</label>
+        <input type="password" id="ghToken" placeholder="ghp_… o github_pat_…" />
+        <span class="hint">Necesita permisos de Actions (leer/escribir) y de Contenido (leer/escribir) sobre este repositorio — el segundo es nuevo, para poder subir la imagen de portada. Se usa directamente desde tu navegador hacia GitHub; no pasa por ningún otro servidor.</span>
+        <div class="checkbox-row">
+          <input type="checkbox" id="rememberToken" checked />
+          <label for="rememberToken">Recordar en este navegador</label>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <p id="status" role="status"></p>
+
+  <footer>
+    Cada envío dispara el workflow <code>process-vod.yml</code> en tu repositorio.
+    El vídeo nunca se guarda en ningún sitio permanente: el runner de GitHub Actions se destruye al terminar.
+  </footer>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>
