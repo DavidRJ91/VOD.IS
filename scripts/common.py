@@ -29,6 +29,25 @@ def format_for_quality(quality: str) -> str:
     return f"bestvideo[height<={height}]+bestaudio/best[height<={height}]"
 
 
+def parse_timestamp_to_seconds(value: str, duration: float) -> float:
+    """Convierte 'auto', 'HH:MM:SS', 'MM:SS' o segundos sueltos a segundos,
+    recortando al final del vídeo si hace falta. Compartido por la portada
+    y por los clips."""
+    value = (value or "auto").strip().lower()
+    if value == "auto" or not value:
+        return max((duration or 0) / 2, 0)
+    try:
+        parts = [float(p) for p in value.split(":")]
+    except ValueError:
+        return max((duration or 0) / 2, 0)
+    seconds = 0.0
+    for part in parts:
+        seconds = seconds * 60 + part
+    if duration:
+        seconds = min(seconds, max(duration - 1, 0))
+    return max(seconds, 0)
+
+
 def notify_discord(embed: dict) -> None:
     webhook_url = env("DISCORD_WEBHOOK_URL")
     if not webhook_url:

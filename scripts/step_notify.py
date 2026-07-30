@@ -10,33 +10,39 @@ from common import env, notify_discord  # noqa: E402
 
 MANIFEST_PATH = "run_data/manifest.json"
 RESULT_PATH = "run_data/result.json"
+CLIPS_RESULT_PATH = "run_data/clips_result.json"
 
 
-def load_json(path: str) -> dict:
+def load_json(path: str):
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
-    return {}
+    return None
 
 
 def main() -> None:
     outcome = sys.argv[1] if len(sys.argv) > 1 else "failure"
-    manifest = load_json(MANIFEST_PATH)
-    result = load_json(RESULT_PATH)
+    manifest = load_json(MANIFEST_PATH) or {}
+    result = load_json(RESULT_PATH) or {}
+    clips = load_json(CLIPS_RESULT_PATH) or []
     vod_url = manifest.get("source_url") or env("VOD_URL") or "desconocido"
     title = result.get("title") or manifest.get("title") or vod_url
 
     if outcome == "success" and result:
+        fields = [
+            {"name": "Origen", "value": result.get("source_url", vod_url), "inline": False},
+            {"name": "YouTube", "value": result["video_url"], "inline": False},
+            {"name": "Visibilidad", "value": result.get("privacy", ""), "inline": True},
+        ]
+        if clips:
+            clips_text = "\n".join(f"Clip {i}: {c['video_url']}" for i, c in enumerate(clips, start=1))
+            fields.append({"name": f"Clips ({len(clips)})", "value": clips_text[:1024], "inline": False})
         notify_discord(
             {
                 "title": "Subida completada",
                 "description": f"**{title}**",
                 "color": 0x1D9E75,
-                "fields": [
-                    {"name": "Origen", "value": result.get("source_url", vod_url), "inline": False},
-                    {"name": "YouTube", "value": result["video_url"], "inline": False},
-                    {"name": "Visibilidad", "value": result.get("privacy", ""), "inline": True},
-                ],
+                "fields": fields,
             }
         )
     else:
