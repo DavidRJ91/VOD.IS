@@ -48,6 +48,10 @@ on:
         description: "Uso interno: ruta en el repo de una miniatura subida desde la web (se lee y se borra al terminar)."
         required: false
         default: ""
+      clip_count:
+        description: "Cuántos clips de ~30s crear a partir del VOD (0 = ninguno)"
+        required: false
+        default: "0"
 
 jobs:
   procesar:
@@ -65,6 +69,7 @@ jobs:
       THUMBNAIL_URL: ${{ inputs.thumbnail_url }}
       THUMBNAIL_TIMESTAMP: ${{ inputs.thumbnail_timestamp }}
       THUMBNAIL_REPO_PATH: ${{ inputs.thumbnail_repo_path }}
+      CLIP_COUNT: ${{ inputs.clip_count }}
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
@@ -95,6 +100,16 @@ jobs:
 
       - name: Subir a YouTube
         run: python scripts/step_upload.py
+
+      - name: Crear y subir clips
+        if: success()
+        run: python scripts/step_clips.py
+
+      - name: Publicar resultado
+        if: success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/step_publish_result.py
 
       - name: Notificar éxito
         if: success()
