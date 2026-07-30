@@ -118,11 +118,22 @@
     </div>
 
     <div class="field">
+      <label for="clipCount">Clips cortos a crear</label>
+      <input type="number" id="clipCount" min="0" max="10" value="0" />
+      <span class="hint">Clips de ~30 segundos, repartidos a lo largo del VOD y subidos aparte a YouTube. 0 = no crear ninguno (máximo 10).</span>
+    </div>
+
+    <div class="field">
       <button type="submit" id="submitBtn">Enviar VOD</button>
     </div>
   </form>
 
-  <details class="card" id="connectionDetails">
+  <div class="card results-gallery" id="resultsGallery" hidden>
+    <h2 class="results-title">Resultado</h2>
+    <div id="resultsList"></div>
+  </div>
+
+  <details class="card hidden-by-default" id="connectionDetails">
     <summary>Conexión con GitHub</summary>
     <div class="details-body">
       <div class="field">
@@ -146,6 +157,7 @@
           <label for="rememberToken">Recordar en este navegador</label>
         </div>
       </div>
+      <p class="hint">Esta sección solo se ve añadiendo <code>?config</code> al final del enlace de esta página. Compártelo solo con quien deba configurarlo.</p>
     </div>
   </details>
 

@@ -12,6 +12,7 @@
     title: document.getElementById("title"),
     description: document.getElementById("description"),
     quality: document.getElementById("quality"),
+    clipCount: document.getElementById("clipCount"),
     scheduleRow: document.getElementById("scheduleRow"),
     scheduledAt: document.getElementById("scheduledAt"),
     thumbAutoHint: document.getElementById("thumbAutoHint"),
@@ -32,6 +33,8 @@
     connectionDetails: document.getElementById("connectionDetails"),
     status: document.getElementById("status"),
     stopwatchTime: document.getElementById("stopwatchTime"),
+    resultsGallery: document.getElementById("resultsGallery"),
+    resultsList: document.getElementById("resultsList"),
   };
 
   const WORKFLOW_FILE = "process-vod.yml";
@@ -120,6 +123,15 @@
     if (kind) els.stopwatchTime.classList.add(`state-${kind}`);
   }
 
+  // ------------------------------------------------------------ modo oculto
+  function isConfigMode() {
+    return new URLSearchParams(location.search).has("config");
+  }
+
+  function applyConfigModeVisibility() {
+    els.connectionDetails.classList.toggle("config-visible", isConfigMode());
+  }
+
   // -------------------------------------------------------- auto-detección
   function autodetectOwnerRepo() {
     const host = location.hostname;
@@ -143,9 +155,6 @@
     els.ghRepo.value = saved.repo || detected.repo || "";
     els.ghBranch.value = saved.branch || "main";
     if (saved.token) els.ghToken.value = saved.token;
-    if (!els.ghOwner.value || !els.ghRepo.value || !els.ghToken.value) {
-      els.connectionDetails.open = true;
-    }
   }
 
   function persistConnection() {
@@ -239,6 +248,66 @@
     return "idle";
   }
 
+  async function fetchResultFromRepo(conn, runId) {
+    const path = `run_status/${runId}.json`;
+    const url = `https://api.github.com/repos/${conn.owner}/${conn.repo}/contents/${path}?ref=${conn.branch}`;
+    const res = await fetch(url, { headers: ghHeaders(conn.token, false) });
+    if (res.status === 404) return null; // el paso "Publicar resultado" no llegó a correr (p. ej. sin clips y sin querer galería)
+    if (!res.ok) throw new Error(`GitHub respondió ${res.status} al leer el resultado.`);
+    const data = await res.json();
+    const bytes = Uint8Array.from(atob(data.content.replace(/\n/g, "")), (c) => c.charCodeAt(0));
+    const decoded = new TextDecoder("utf-8").decode(bytes);
+    return { payload: JSON.parse(decoded), sha: data.sha, path };
+  }
+
+  async function deleteResultFromRepo(conn, path, sha) {
+    const url = `https://api.github.com/repos/${conn.owner}/${conn.repo}/contents/${path}`;
+    await fetch(url, {
+      method: "DELETE",
+      headers: ghHeaders(conn.token, true),
+      body: JSON.stringify({ message: `chore: limpiar resultado publicado (${path})`, sha, branch: conn.branch }),
+    });
+    // Si falla la limpieza no pasa nada grave: es un archivo pequeño y el próximo envío usa otra ruta (por run id).
+  }
+
+  function resultItemHtml(label, videoId, videoUrl, title) {
+    const thumb = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+    return `
+      <div class="result-item">
+        <img src="${thumb}" alt="" loading="lazy" onerror="this.style.visibility='hidden'" />
+        <div class="result-item-info">
+          <p class="result-item-label">${label}</p>
+          <a href="${videoUrl}" target="_blank" rel="noopener">${title || videoUrl}</a>
+        </div>
+      </div>`;
+  }
+
+  function renderResults(payload) {
+    const parts = [];
+    if (payload.main) {
+      parts.push(resultItemHtml("Vídeo completo", payload.main.video_id, payload.main.video_url, payload.main.title));
+    }
+    (payload.clips || []).forEach((clip, i) => {
+      parts.push(resultItemHtml(`Clip ${i + 1}`, clip.video_id, clip.video_url, clip.video_url));
+    });
+    if (!parts.length) return;
+    els.resultsList.innerHTML = parts.join("");
+    els.resultsGallery.hidden = false;
+    els.resultsGallery.classList.add("visible");
+  }
+
+  async function loadAndShowResults(conn, runId) {
+    try {
+      const found = await fetchResultFromRepo(conn, runId);
+      if (!found) return;
+      renderResults(found.payload);
+      await deleteResultFromRepo(conn, found.path, found.sha);
+    } catch (err) {
+      // La galería es un plus — si falla, el aviso de éxito y el de Discord ya han informado igualmente.
+      console.warn("No se pudo cargar la galería de resultados:", err.message);
+    }
+  }
+
   // ------------------------------------------------------------- seguimiento
   async function pollRun(conn, run) {
     setStatusHtml(`En marcha — <a href="${run.html_url}" target="_blank" rel="noopener">ver registro en GitHub</a>`);
@@ -270,6 +339,7 @@
           `${ok ? "Completado ✅" : "Falló ❌"} — <a href="${run.html_url}" target="_blank" rel="noopener">ver registro</a>. Discord ya debería tener el aviso.`,
           ok ? "success" : "error"
         );
+        if (ok) await loadAndShowResults(conn, run.id);
         return;
       }
     }
@@ -373,6 +443,9 @@
     resetLamps();
     setLamp("origen", "done");
     els.submitBtn.disabled = true;
+    els.resultsGallery.hidden = true;
+    els.resultsGallery.classList.remove("visible");
+    els.resultsList.innerHTML = "";
     startStopwatch();
     setStatus("Enviando a GitHub…");
 
@@ -394,6 +467,7 @@
         privacy,
         scheduled_at: scheduledAtIso,
         quality: els.quality.value,
+        clip_count: String(Math.max(0, Math.min(10, parseInt(els.clipCount.value, 10) || 0))),
         thumbnail_url: thumbnailUrlInput,
         thumbnail_repo_path: thumbnailRepoPathInput,
       };
@@ -456,6 +530,7 @@
 
   function init() {
     loadConnection();
+    applyConfigModeVisibility();
     resetLamps();
     els.stopwatchTime.textContent = "00:00";
 

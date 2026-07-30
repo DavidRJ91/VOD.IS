@@ -437,6 +437,75 @@ details.card .details-body {
   color: var(--text-muted);
 }
 
+/* ---------- Modo oculto (panel de conexión con GitHub) ---------- */
+.hidden-by-default {
+  display: none;
+}
+
+.hidden-by-default.config-visible {
+  display: block;
+}
+
+/* ---------- Galería de resultados ---------- */
+.results-gallery {
+  display: none;
+}
+
+.results-gallery.visible {
+  display: block;
+}
+
+.results-title {
+  font-family: var(--mono);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 16px;
+  font-weight: 600;
+}
+
+.result-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.result-item:last-child {
+  border-bottom: none;
+}
+
+.result-item img {
+  width: 120px;
+  height: 68px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface-raised);
+  flex-shrink: 0;
+}
+
+.result-item-info {
+  min-width: 0;
+}
+
+.result-item-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 4px;
+}
+
+.result-item a {
+  color: var(--amber);
+  font-size: 14px;
+  word-break: break-all;
+}
+
 /* ---------- Status panel ---------- */
 #status {
   font-family: var(--mono);
