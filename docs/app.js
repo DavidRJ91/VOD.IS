@@ -280,33 +280,42 @@
     return `${m}:${String(s).padStart(2, "0")}`;
   }
 
-  async function downloadClip(conn, clip, buttonEl) {
-    const originalText = buttonEl.textContent;
-    buttonEl.disabled = true;
-    buttonEl.textContent = "Descargando…";
+  async function loadClip(conn, clip, container) {
+    const loadBtn = container.querySelector(".clip-load-btn");
+    const originalText = loadBtn.textContent;
+    loadBtn.disabled = true;
+    loadBtn.textContent = "Cargando…";
     try {
       const url = `https://api.github.com/repos/${conn.owner}/${conn.repo}/contents/${clip.repo_path}?ref=${conn.branch}`;
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${conn.token}`, Accept: "application/vnd.github.raw+json" },
       });
-      if (!res.ok) throw new Error(`GitHub respondió ${res.status} al descargar el clip.`);
+      if (!res.ok) throw new Error(`GitHub respondió ${res.status} al cargar el clip.`);
       const blob = await res.blob();
-
       const objectUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = objectUrl;
-      a.download = clip.repo_path.split("/").pop();
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(objectUrl);
+      const filename = clip.repo_path.split("/").pop();
 
-      buttonEl.textContent = "Descargado ✓";
+      const video = document.createElement("video");
+      video.controls = true;
+      video.src = objectUrl;
+      video.className = "clip-player";
+
+      const downloadLink = document.createElement("a");
+      downloadLink.href = objectUrl;
+      downloadLink.download = filename;
+      downloadLink.className = "clip-download-link";
+      downloadLink.textContent = "Descargar";
+
+      loadBtn.remove();
+      container.append(video, downloadLink);
+
+      // Ya tenemos el clip en el navegador (como blob): no hace falta dejarlo
+      // en el repositorio ni un segundo más.
       await deleteFromRepo(conn, clip.repo_path, clip.sha);
     } catch (err) {
-      buttonEl.disabled = false;
-      buttonEl.textContent = originalText;
-      setStatus(`No se pudo descargar el clip: ${err.message}`, "error");
+      loadBtn.disabled = false;
+      loadBtn.textContent = originalText;
+      setStatus(`No se pudo cargar el clip: ${err.message}`, "error");
     }
   }
 
@@ -324,25 +333,19 @@
 
   function buildClipItem(conn, clip, index) {
     const item = document.createElement("div");
-    item.className = "result-item";
+    item.className = "result-item clip-item";
 
-    const info = document.createElement("div");
-    info.className = "result-item-info";
     const label = document.createElement("p");
     label.className = "result-item-label";
-    label.textContent = `Clip ${index + 1} — empieza en ${formatClipTimestamp(clip.start_seconds)}`;
-    const size = document.createElement("span");
-    size.className = "hint";
-    size.textContent = formatMB(clip.size_bytes || 0);
-    info.append(label, size);
+    label.textContent = `Clip ${index + 1} — empieza en ${formatClipTimestamp(clip.start_seconds)} · ${formatMB(clip.size_bytes || 0)}`;
 
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "clip-download-btn";
-    btn.textContent = "Descargar";
-    btn.addEventListener("click", () => downloadClip(conn, clip, btn));
+    btn.className = "clip-load-btn";
+    btn.textContent = "Cargar y reproducir";
+    btn.addEventListener("click", () => loadClip(conn, clip, item));
 
-    item.append(info, btn);
+    item.append(label, btn);
     return item;
   }
 
@@ -375,12 +378,14 @@
   async function loadAndShowResults(conn, runId) {
     try {
       const found = await fetchResultFromRepo(conn, runId);
-      if (!found) return;
+      if (!found) {
+        setStatus("Completado, pero no encontré datos de resultado para mostrar la galería (¿acabó bien el paso «Publicar resultado»?).");
+        return;
+      }
       renderResults(conn, found.payload);
       await deleteFromRepo(conn, found.path, found.sha);
     } catch (err) {
-      // La galería es un plus — si falla, el aviso de éxito y el de Discord ya han informado igualmente.
-      console.warn("No se pudo cargar la galería de resultados:", err.message);
+      setStatus(`Completado, pero no se pudo cargar la galería de resultados: ${err.message}`, "error");
     }
   }
 

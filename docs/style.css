@@ -506,8 +506,14 @@ details.card .details-body {
   word-break: break-all;
 }
 
-.clip-download-btn {
-  flex-shrink: 0;
+.clip-item {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.clip-load-btn {
+  align-self: flex-start;
   background: var(--surface-raised);
   border: 1px solid var(--line);
   color: var(--text);
@@ -519,14 +525,29 @@ details.card .details-body {
   cursor: pointer;
 }
 
-.clip-download-btn:hover:not(:disabled) {
+.clip-load-btn:hover:not(:disabled) {
   border-color: var(--amber);
   color: var(--amber);
 }
 
-.clip-download-btn:disabled {
+.clip-load-btn:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+.clip-player {
+  width: 100%;
+  max-width: 420px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #000;
+}
+
+.clip-download-link {
+  align-self: flex-start;
+  color: var(--amber);
+  font-size: 13px;
+  font-weight: 500;
 }
 
 /* ---------- Status panel ---------- */
