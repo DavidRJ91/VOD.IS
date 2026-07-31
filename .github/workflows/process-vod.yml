@@ -101,8 +101,10 @@ jobs:
       - name: Subir a YouTube
         run: python scripts/step_upload.py
 
-      - name: Crear y subir clips
+      - name: Crear clips
         if: success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/step_clips.py
 
       - name: Publicar resultado
