@@ -506,6 +506,29 @@ details.card .details-body {
   word-break: break-all;
 }
 
+.clip-download-btn {
+  flex-shrink: 0;
+  background: var(--surface-raised);
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.clip-download-btn:hover:not(:disabled) {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+.clip-download-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 /* ---------- Status panel ---------- */
 #status {
   font-family: var(--mono);

@@ -260,14 +260,54 @@
     return { payload: JSON.parse(decoded), sha: data.sha, path };
   }
 
-  async function deleteResultFromRepo(conn, path, sha) {
+  async function deleteFromRepo(conn, path, sha) {
     const url = `https://api.github.com/repos/${conn.owner}/${conn.repo}/contents/${path}`;
     await fetch(url, {
       method: "DELETE",
       headers: ghHeaders(conn.token, true),
-      body: JSON.stringify({ message: `chore: limpiar resultado publicado (${path})`, sha, branch: conn.branch }),
+      body: JSON.stringify({ message: `chore: limpiar archivo temporal (${path})`, sha, branch: conn.branch }),
     });
-    // Si falla la limpieza no pasa nada grave: es un archivo pequeño y el próximo envío usa otra ruta (por run id).
+    // Si falla la limpieza no pasa nada grave: es un archivo temporal, y el próximo envío usa otra ruta.
+  }
+
+  function formatMB(bytes) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function formatClipTimestamp(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${String(s).padStart(2, "0")}`;
+  }
+
+  async function downloadClip(conn, clip, buttonEl) {
+    const originalText = buttonEl.textContent;
+    buttonEl.disabled = true;
+    buttonEl.textContent = "Descargando…";
+    try {
+      const url = `https://api.github.com/repos/${conn.owner}/${conn.repo}/contents/${clip.repo_path}?ref=${conn.branch}`;
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${conn.token}`, Accept: "application/vnd.github.raw+json" },
+      });
+      if (!res.ok) throw new Error(`GitHub respondió ${res.status} al descargar el clip.`);
+      const blob = await res.blob();
+
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = clip.repo_path.split("/").pop();
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+
+      buttonEl.textContent = "Descargado ✓";
+      await deleteFromRepo(conn, clip.repo_path, clip.sha);
+    } catch (err) {
+      buttonEl.disabled = false;
+      buttonEl.textContent = originalText;
+      setStatus(`No se pudo descargar el clip: ${err.message}`, "error");
+    }
   }
 
   function resultItemHtml(label, videoId, videoUrl, title) {
@@ -282,16 +322,52 @@
       </div>`;
   }
 
-  function renderResults(payload) {
-    const parts = [];
+  function buildClipItem(conn, clip, index) {
+    const item = document.createElement("div");
+    item.className = "result-item";
+
+    const info = document.createElement("div");
+    info.className = "result-item-info";
+    const label = document.createElement("p");
+    label.className = "result-item-label";
+    label.textContent = `Clip ${index + 1} — empieza en ${formatClipTimestamp(clip.start_seconds)}`;
+    const size = document.createElement("span");
+    size.className = "hint";
+    size.textContent = formatMB(clip.size_bytes || 0);
+    info.append(label, size);
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "clip-download-btn";
+    btn.textContent = "Descargar";
+    btn.addEventListener("click", () => downloadClip(conn, clip, btn));
+
+    item.append(info, btn);
+    return item;
+  }
+
+  function renderResults(conn, payload) {
+    els.resultsList.innerHTML = "";
+    let hasContent = false;
+
     if (payload.main) {
-      parts.push(resultItemHtml("Vídeo completo", payload.main.video_id, payload.main.video_url, payload.main.title));
+      const mainWrap = document.createElement("div");
+      mainWrap.innerHTML = resultItemHtml(
+        "Vídeo completo",
+        payload.main.video_id,
+        payload.main.video_url,
+        payload.main.title
+      );
+      els.resultsList.appendChild(mainWrap.firstElementChild);
+      hasContent = true;
     }
+
     (payload.clips || []).forEach((clip, i) => {
-      parts.push(resultItemHtml(`Clip ${i + 1}`, clip.video_id, clip.video_url, clip.video_url));
+      els.resultsList.appendChild(buildClipItem(conn, clip, i));
+      hasContent = true;
     });
-    if (!parts.length) return;
-    els.resultsList.innerHTML = parts.join("");
+
+    if (!hasContent) return;
     els.resultsGallery.hidden = false;
     els.resultsGallery.classList.add("visible");
   }
@@ -300,8 +376,8 @@
     try {
       const found = await fetchResultFromRepo(conn, runId);
       if (!found) return;
-      renderResults(found.payload);
-      await deleteResultFromRepo(conn, found.path, found.sha);
+      renderResults(conn, found.payload);
+      await deleteFromRepo(conn, found.path, found.sha);
     } catch (err) {
       // La galería es un plus — si falla, el aviso de éxito y el de Discord ya han informado igualmente.
       console.warn("No se pudo cargar la galería de resultados:", err.message);
