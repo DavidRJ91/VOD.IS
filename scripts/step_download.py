@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 
 import yt_dlp
@@ -11,6 +12,21 @@ sys.path.insert(0, os.path.dirname(__file__))
 from common import detect_platform, die, env, format_for_quality  # noqa: E402
 
 MANIFEST_PATH = "run_data/manifest.json"
+
+
+def probe_duration_seconds(filepath: str) -> float:
+    """Duración real del archivo ya descargado, vía ffprobe. Más fiable que
+    el metadato que reporta la plataforma (Kick en particular a veces no
+    lo da), y es lo que de verdad importa para repartir los clips."""
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", filepath],
+            capture_output=True, text=True, check=True, timeout=30,
+        )
+        return float(out.stdout.strip())
+    except (subprocess.CalledProcessError, ValueError, OSError, subprocess.TimeoutExpired) as exc:
+        print(f"Aviso: no se pudo calcular la duración real con ffprobe ({exc}).")
+        return 0.0
 
 
 def main() -> None:
@@ -56,17 +72,21 @@ def main() -> None:
         die("La descarga terminó pero no se encontró el archivo resultante.")
         return
 
+    reported_duration = info.get("duration") or 0
+    real_duration = probe_duration_seconds(filepath)
+    duration = real_duration if real_duration > 0 else reported_duration
+
     manifest = {
         "source_url": vod_url,
         "filepath": filepath,
         "title": info.get("title", "VOD"),
         "description": info.get("description", "") or "",
-        "duration": info.get("duration") or 0,
+        "duration": duration,
     }
     with open(MANIFEST_PATH, "w", encoding="utf-8") as f:
         json.dump(manifest, f, ensure_ascii=False)
 
-    print(f"Descargado: {filepath}")
+    print(f"Descargado: {filepath} (duración: {duration:.0f}s)")
 
 
 if __name__ == "__main__":
