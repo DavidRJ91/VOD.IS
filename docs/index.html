@@ -14,7 +14,7 @@
 
   <p class="eyebrow">Panel de control</p>
   <h1>VOD → YouTube</h1>
-  <p class="subtitle">Pega el enlace de un VOD de Twitch. Esta página pone en marcha; la descarga, la subida y el aviso a Discord todo ocurre en GitHub, no en tu navegador.</p>
+  <p class="subtitle">Pega el enlace de un VOD de Twitch o Kick. Esta página lo pone en marcha; la descarga, la subida y el aviso a Discord ocurren en GitHub, no en tu navegador.</p>
 
   <div class="stopwatch">
     <div>
@@ -46,13 +46,12 @@
   <form class="card" id="vodForm">
     <div class="field">
       <label for="vodUrl">Enlace del VOD</label>
-      <input type="url" id="vodUrl" placeholder="https://www.twitch.tv/videos/…" required />
+      <input type="url" id="vodUrl" placeholder="https://www.twitch.tv/videos/… o https://kick.com/…/videos/…" required />
     </div>
 
-    <form class="card" id="vodForm">
     <div class="field">
-      <label for="vodUrl">Enlace del VOD</label>
-      <input type="url" id="vodUrl" placeholder="https://www.twitch.tv/videos/…" required />
+      <label for="title">Título en YouTube</label>
+      <input type="text" id="title" placeholder="Vacío = se usa el título original del VOD" />
     </div>
 
     <div class="field">
@@ -115,7 +114,7 @@
         <option value="1080" selected>1080p</option>
         <option value="best">Máxima disponible</option>
       </select>
-      <span class="hint">En GitHub tienen disco y tiempo limitados; 1080p es un buen punto de partida para VODs largos.</span>
+      <span class="hint">Los runners de GitHub tienen disco y tiempo limitados; 1080p es un buen punto de partida para VODs largos.</span>
     </div>
 
     <div class="field">
@@ -165,7 +164,8 @@
   <p id="status" role="status"></p>
 
   <footer>
-    Dvid-Code
+    Cada envío dispara el workflow <code>process-vod.yml</code> en tu repositorio.
+    El vídeo nunca se guarda en ningún sitio permanente: el runner de GitHub Actions se destruye al terminar.
   </footer>
 
 </div>
