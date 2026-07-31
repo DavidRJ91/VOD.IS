@@ -1,6 +1,6 @@
 # VOD2YouTube (versión web, sin página propia)
 
-Descarga un VOD de Twitch o Kick (solo vídeo, sin chat), lo sube a YouTube
+Descarga un VOD de Twitch (solo vídeo, sin chat), lo sube a YouTube
 con la portada, título, descripción y visibilidad que elijas, y avisa en
 Discord. Todo corre en GitHub Actions — no instalas nada en tu ordenador
 para usarlo, y lo arrancas desde cualquier navegador, en cualquier parte
@@ -113,9 +113,7 @@ igual cuando termine.
   GitHub Actions son 360). Si te acercas, baja la calidad a 720p/1080p.
 - **Disco del runner:** unos 14 GB libres — de sobra para la mayoría de
   VODs en 1080p.
-- **Kick no tiene API pública estable** para detectar VODs nuevos
-  automáticamente; por eso siempre pegas el enlace a mano, para ambas
-  plataformas.
-- Usa esto solo con contenido propio o con permiso explícito del
+  
+**- Usa esto solo con contenido propio o con permiso explícito del
   creador: redistribuir VODs ajenos puede infringir los términos de
-  Twitch/Kick y derechos de autor.
+  Twitch y derechos de autor.**
