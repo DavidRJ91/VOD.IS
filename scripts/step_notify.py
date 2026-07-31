@@ -35,8 +35,11 @@ def main() -> None:
             {"name": "Visibilidad", "value": result.get("privacy", ""), "inline": True},
         ]
         if clips:
-            clips_text = "\n".join(f"Clip {i}: {c['video_url']}" for i, c in enumerate(clips, start=1))
-            fields.append({"name": f"Clips ({len(clips)})", "value": clips_text[:1024], "inline": False})
+            fields.append({
+                "name": f"Clips ({len(clips)})",
+                "value": "Listos para descargar desde la propia página web (no se suben a YouTube).",
+                "inline": False,
+            })
         notify_discord(
             {
                 "title": "Subida completada",
