@@ -36,6 +36,18 @@ on:
           - "720"
           - "1080"
           - "best"
+      trim_start:
+        description: "Recortar el VOD desde este instante (HH:MM:SS). Vacío = desde el principio."
+        required: false
+        default: ""
+      trim_end:
+        description: "Recortar el VOD hasta este instante (HH:MM:SS). Vacío = hasta el final."
+        required: false
+        default: ""
+      playlist_id:
+        description: "ID de una lista de reproducción de YouTube a la que añadir el vídeo (opcional)"
+        required: false
+        default: ""
       thumbnail_url:
         description: "URL directa a una imagen JPG/PNG (máx. 2MB) para portada. Vacío = se extrae un fotograma del propio VOD."
         required: false
@@ -49,9 +61,22 @@ on:
         required: false
         default: ""
       clip_count:
-        description: "Cuántos clips de ~30s crear a partir del VOD (0 = ninguno)"
+        description: "Cuántos clips crear a partir del VOD, repartidos automáticamente (0 = ninguno; se ignora si rellenas clip_timestamps)"
         required: false
         default: "0"
+      clip_timestamps:
+        description: "Marcas de tiempo manuales para los clips, separadas por comas (ej. 5:30, 12:45, 90). Si rellenas esto, tiene prioridad sobre clip_count."
+        required: false
+        default: ""
+      clip_duration:
+        description: "Duración de cada clip, en segundos"
+        required: false
+        default: "30"
+        type: choice
+        options:
+          - "15"
+          - "30"
+          - "60"
 
 jobs:
   procesar:
@@ -66,10 +91,15 @@ jobs:
       PRIVACY: ${{ inputs.privacy }}
       SCHEDULED_AT: ${{ inputs.scheduled_at }}
       QUALITY: ${{ inputs.quality }}
+      TRIM_START: ${{ inputs.trim_start }}
+      TRIM_END: ${{ inputs.trim_end }}
+      PLAYLIST_ID: ${{ inputs.playlist_id }}
       THUMBNAIL_URL: ${{ inputs.thumbnail_url }}
       THUMBNAIL_TIMESTAMP: ${{ inputs.thumbnail_timestamp }}
       THUMBNAIL_REPO_PATH: ${{ inputs.thumbnail_repo_path }}
       CLIP_COUNT: ${{ inputs.clip_count }}
+      CLIP_TIMESTAMPS: ${{ inputs.clip_timestamps }}
+      CLIP_DURATION: ${{ inputs.clip_duration }}
       YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
       YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
@@ -93,6 +123,9 @@ jobs:
       - name: Descargar VOD
         run: python scripts/step_download.py
 
+      - name: Recortar VOD
+        run: python scripts/step_trim.py
+
       - name: Preparar miniatura
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -115,10 +148,14 @@ jobs:
 
       - name: Notificar éxito
         if: success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/step_notify.py success
 
       - name: Notificar fallo
         if: failure()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/step_notify.py failure
 
       - name: Borrar miniatura subida
