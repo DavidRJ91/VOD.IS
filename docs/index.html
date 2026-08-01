@@ -44,19 +44,45 @@
   </div>
 
   <form class="card" id="vodForm">
+    <div class="field form-actions-row">
+      <button type="button" id="retryLastBtn" class="ghost-btn" hidden>Rellenar con el último envío</button>
+    </div>
+
     <div class="field">
       <label for="vodUrl">Enlace del VOD</label>
       <input type="url" id="vodUrl" placeholder="https://www.twitch.tv/videos/… o https://kick.com/…/videos/…" required />
     </div>
 
     <div class="field">
-      <label for="title">Título en YouTube</label>
+      <div class="field-label-row">
+        <label for="title">Título en YouTube</label>
+        <div class="template-buttons">
+          <button type="button" id="loadTemplateBtn" class="ghost-btn-sm">Cargar plantilla</button>
+          <button type="button" id="saveTemplateBtn" class="ghost-btn-sm">Guardar como plantilla</button>
+        </div>
+      </div>
       <input type="text" id="title" placeholder="Vacío = se usa el título original del VOD" />
     </div>
 
     <div class="field">
       <label for="description">Descripción</label>
       <textarea id="description" placeholder="Vacío = se usa la descripción original"></textarea>
+      <span class="hint">"Guardar como plantilla" recuerda el título y la descripción actuales en este navegador, para poder cargarlos en el próximo envío.</span>
+    </div>
+
+    <div class="field">
+      <label>Recortar el vídeo principal (opcional)</label>
+      <div class="two-col">
+        <div>
+          <label for="trimStart" class="sublabel">Desde</label>
+          <input type="text" id="trimStart" placeholder="HH:MM:SS" />
+        </div>
+        <div>
+          <label for="trimEnd" class="sublabel">Hasta</label>
+          <input type="text" id="trimEnd" placeholder="HH:MM:SS" />
+        </div>
+      </div>
+      <span class="hint">Para quitar el rato muerto antes de empezar o al final. Vacío en ambos = se sube el VOD entero. Los clips y la portada se calculan sobre el vídeo ya recortado.</span>
     </div>
 
     <div class="field">
@@ -108,6 +134,12 @@
     </div>
 
     <div class="field">
+      <label for="playlistId">Lista de reproducción de YouTube (opcional)</label>
+      <input type="text" id="playlistId" placeholder="PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
+      <span class="hint">El ID que aparece después de <code>list=</code> en la URL de la lista. Vacío = no se añade a ninguna.</span>
+    </div>
+
+    <div class="field">
       <label for="quality">Calidad máxima de descarga</label>
       <select id="quality">
         <option value="720">720p</option>
@@ -120,7 +152,22 @@
     <div class="field">
       <label for="clipCount">Clips cortos a crear</label>
       <input type="number" id="clipCount" min="0" max="10" value="0" />
-      <span class="hint">Clips de ~30 segundos, repartidos a lo largo del VOD. No se suben a YouTube: al terminar podrás descargarlos a tu equipo desde esta misma página. 0 = no crear ninguno (máximo 10).</span>
+      <span class="hint">Repartidos automáticamente a lo largo del VOD. Se ignora si rellenas las marcas manuales de abajo. No se suben a YouTube: al terminar podrás reproducirlos y descargarlos desde esta misma página. Máximo 10.</span>
+
+      <div class="field-sub">
+        <label for="clipTimestamps" class="sublabel">Marcas de tiempo manuales (opcional)</label>
+        <input type="text" id="clipTimestamps" placeholder="5:30, 12:45, 47:10" />
+        <span class="hint">Si rellenas esto, se usan estos instantes exactos en vez del reparto automático de arriba.</span>
+      </div>
+
+      <div class="field-sub">
+        <label for="clipDuration" class="sublabel">Duración de cada clip</label>
+        <select id="clipDuration">
+          <option value="15">15 segundos</option>
+          <option value="30" selected>30 segundos</option>
+          <option value="60">60 segundos</option>
+        </select>
+      </div>
     </div>
 
     <div class="field">
@@ -132,6 +179,13 @@
     <h2 class="results-title">Resultado</h2>
     <div id="resultsList"></div>
   </div>
+
+  <details class="card" id="historyDetails">
+    <summary>Historial de envíos</summary>
+    <div class="details-body">
+      <div id="historyList" class="hint">Cargando…</div>
+    </div>
+  </details>
 
   <details class="card hidden-by-default" id="connectionDetails">
     <summary>Conexión con GitHub</summary>

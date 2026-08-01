@@ -8,11 +8,19 @@
   const els = {
     form: document.getElementById("vodForm"),
     submitBtn: document.getElementById("submitBtn"),
+    retryLastBtn: document.getElementById("retryLastBtn"),
     vodUrl: document.getElementById("vodUrl"),
     title: document.getElementById("title"),
     description: document.getElementById("description"),
+    loadTemplateBtn: document.getElementById("loadTemplateBtn"),
+    saveTemplateBtn: document.getElementById("saveTemplateBtn"),
+    trimStart: document.getElementById("trimStart"),
+    trimEnd: document.getElementById("trimEnd"),
+    playlistId: document.getElementById("playlistId"),
     quality: document.getElementById("quality"),
     clipCount: document.getElementById("clipCount"),
+    clipTimestamps: document.getElementById("clipTimestamps"),
+    clipDuration: document.getElementById("clipDuration"),
     scheduleRow: document.getElementById("scheduleRow"),
     scheduledAt: document.getElementById("scheduledAt"),
     thumbAutoHint: document.getElementById("thumbAutoHint"),
@@ -35,7 +43,11 @@
     stopwatchTime: document.getElementById("stopwatchTime"),
     resultsGallery: document.getElementById("resultsGallery"),
     resultsList: document.getElementById("resultsList"),
+    historyList: document.getElementById("historyList"),
   };
+
+  const TEMPLATE_KEY = "vod2youtube.template";
+  const LAST_SUBMISSION_KEY = "vod2youtube.lastSubmission";
 
   const WORKFLOW_FILE = "process-vod.yml";
   const STEP_TO_LAMP = {
@@ -171,6 +183,145 @@
         token: els.ghToken.value.trim(),
       })
     );
+  }
+
+  // ---------------------------------------------------------- plantillas
+  function saveTemplate() {
+    localStorage.setItem(
+      TEMPLATE_KEY,
+      JSON.stringify({ title: els.title.value, description: els.description.value })
+    );
+    const original = els.saveTemplateBtn.textContent;
+    els.saveTemplateBtn.textContent = "Guardado ✓";
+    setTimeout(() => { els.saveTemplateBtn.textContent = original; }, 1500);
+  }
+
+  function loadTemplate() {
+    let saved = null;
+    try {
+      saved = JSON.parse(localStorage.getItem(TEMPLATE_KEY) || "null");
+    } catch (_) {
+      saved = null;
+    }
+    if (!saved) {
+      setStatus("Todavía no has guardado ninguna plantilla.");
+      return;
+    }
+    els.title.value = saved.title || "";
+    els.description.value = saved.description || "";
+  }
+
+  // ------------------------------------------------- reintentar el último envío
+  function currentFormStateForRetry() {
+    return {
+      vodUrl: els.vodUrl.value.trim(),
+      title: els.title.value.trim(),
+      description: els.description.value.trim(),
+      trimStart: els.trimStart.value.trim(),
+      trimEnd: els.trimEnd.value.trim(),
+      playlistId: els.playlistId.value.trim(),
+      privacy: els.form.querySelector('input[name="privacy"]:checked').value,
+      scheduledAt: els.scheduledAt.value,
+      quality: els.quality.value,
+      clipCount: els.clipCount.value,
+      clipTimestamps: els.clipTimestamps.value.trim(),
+      clipDuration: els.clipDuration.value,
+      // La fuente "file" no se puede recordar (el archivo no cabe en localStorage
+      // de forma razonable); al reintentar, como mucho se recupera la URL.
+      thumbSource: currentThumbSource() === "file" ? "auto" : currentThumbSource(),
+      thumbnailUrl: els.thumbnailUrl.value.trim(),
+    };
+  }
+
+  function saveLastSubmission() {
+    localStorage.setItem(LAST_SUBMISSION_KEY, JSON.stringify(currentFormStateForRetry()));
+  }
+
+  function applyFormState(state) {
+    els.vodUrl.value = state.vodUrl || "";
+    els.title.value = state.title || "";
+    els.description.value = state.description || "";
+    els.trimStart.value = state.trimStart || "";
+    els.trimEnd.value = state.trimEnd || "";
+    els.playlistId.value = state.playlistId || "";
+    els.quality.value = state.quality || "1080";
+    els.clipCount.value = state.clipCount || "0";
+    els.clipTimestamps.value = state.clipTimestamps || "";
+    els.clipDuration.value = state.clipDuration || "30";
+    els.thumbnailUrl.value = state.thumbnailUrl || "";
+
+    const privacyInput = document.getElementById(`privacy-${state.privacy || "unlisted"}`);
+    if (privacyInput) privacyInput.checked = true;
+    if (state.scheduledAt) els.scheduledAt.value = state.scheduledAt;
+
+    const thumbInput = document.getElementById(`thumb-${state.thumbSource || "auto"}`);
+    if (thumbInput) thumbInput.checked = true;
+
+    togglePrivacyFields();
+    toggleThumbFields();
+  }
+
+  function initRetryButton() {
+    let saved = null;
+    try {
+      saved = JSON.parse(localStorage.getItem(LAST_SUBMISSION_KEY) || "null");
+    } catch (_) {
+      saved = null;
+    }
+    if (!saved) return;
+    els.retryLastBtn.hidden = false;
+    els.retryLastBtn.addEventListener("click", () => applyFormState(saved));
+  }
+
+  // ------------------------------------------------------------- historial
+  function formatHistoryDate(iso) {
+    try {
+      return new Date(iso).toLocaleString();
+    } catch (_) {
+      return iso || "";
+    }
+  }
+
+  function historyItemHtml(entry) {
+    const ok = entry.outcome === "success";
+    const titleHtml = ok && entry.video_url
+      ? `<a class="history-item-title" href="${entry.video_url}" target="_blank" rel="noopener">${entry.title || entry.vod_url}</a>`
+      : `<span class="history-item-title">${entry.title || entry.vod_url}</span>`;
+    const clipsText = entry.clip_count ? ` · ${entry.clip_count} clip(s)` : "";
+    return `
+      <div class="history-item">
+        <div class="history-item-main">
+          ${titleHtml}
+          <div class="history-item-meta">${formatHistoryDate(entry.timestamp)}${clipsText}</div>
+        </div>
+        <span class="history-item-status ${ok ? "success" : "failure"}">${ok ? "OK" : "Falló"}</span>
+      </div>`;
+  }
+
+  async function loadHistory(conn) {
+    if (!conn.owner || !conn.repo || !conn.token) {
+      els.historyList.textContent = "Configura la conexión con GitHub (añadiendo ?config al enlace) para ver el historial.";
+      return;
+    }
+    try {
+      const url = `https://api.github.com/repos/${conn.owner}/${conn.repo}/contents/run_status/history.json?ref=${conn.branch}`;
+      const res = await fetch(url, { headers: ghHeaders(conn.token, false) });
+      if (res.status === 404) {
+        els.historyList.textContent = "Todavía no hay envíos registrados.";
+        return;
+      }
+      if (!res.ok) throw new Error(`GitHub respondió ${res.status}`);
+      const data = await res.json();
+      const bytes = Uint8Array.from(atob(data.content.replace(/\n/g, "")), (c) => c.charCodeAt(0));
+      const history = JSON.parse(new TextDecoder("utf-8").decode(bytes));
+      if (!history.length) {
+        els.historyList.textContent = "Todavía no hay envíos registrados.";
+        return;
+      }
+      els.historyList.innerHTML = history.slice().reverse().map(historyItemHtml).join("");
+    } catch (err) {
+      els.historyList.textContent = `No se pudo cargar el historial: ${err.message}`;
+    }
   }
 
   // --------------------------------------------------------- llamadas a GitHub
@@ -520,6 +671,7 @@
       return;
     }
     persistConnection();
+    saveLastSubmission();
 
     resetLamps();
     setLamp("origen", "done");
@@ -548,7 +700,12 @@
         privacy,
         scheduled_at: scheduledAtIso,
         quality: els.quality.value,
+        trim_start: els.trimStart.value.trim(),
+        trim_end: els.trimEnd.value.trim(),
+        playlist_id: els.playlistId.value.trim(),
         clip_count: String(Math.max(0, Math.min(10, parseInt(els.clipCount.value, 10) || 0))),
+        clip_timestamps: els.clipTimestamps.value.trim(),
+        clip_duration: els.clipDuration.value,
         thumbnail_url: thumbnailUrlInput,
         thumbnail_repo_path: thumbnailRepoPathInput,
       };
@@ -626,7 +783,18 @@
     toggleThumbFields();
     initDropzone();
 
+    els.saveTemplateBtn.addEventListener("click", saveTemplate);
+    els.loadTemplateBtn.addEventListener("click", loadTemplate);
+    initRetryButton();
+
     els.form.addEventListener("submit", handleSubmit);
+
+    loadHistory({
+      owner: els.ghOwner.value.trim(),
+      repo: els.ghRepo.value.trim(),
+      branch: els.ghBranch.value.trim() || "main",
+      token: els.ghToken.value.trim(),
+    });
   }
 
   document.addEventListener("DOMContentLoaded", init);

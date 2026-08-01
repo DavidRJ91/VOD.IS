@@ -1,8 +1,11 @@
-"""Paso: crea hasta CLIP_COUNT clips de ~30s repartidos por el VOD y los
-deja en el propio repositorio para que la web los ofrezca como descarga.
-No se suben a YouTube. Es un extra — si un clip falla, se avisa y se sigue
-con los demás; nunca tumba la subida del vídeo principal, que ya ocurrió
-antes.
+"""Paso: crea clips cortos del VOD y los deja en el propio repositorio para
+que la web los ofrezca como descarga. No se suben a YouTube. Es un
+extra — si un clip falla, se avisa y se sigue con los demás; nunca tumba
+la subida del vídeo principal, que ya ocurrió antes.
+
+Dos formas de elegir los instantes:
+- CLIP_TIMESTAMPS (si no está vacío): lista manual "5:30, 12:45, 90".
+- Si no, CLIP_COUNT clips repartidos automáticamente por el vídeo.
 """
 from __future__ import annotations
 
@@ -15,39 +18,47 @@ import sys
 import requests
 
 sys.path.insert(0, os.path.dirname(__file__))
-from common import env  # noqa: E402
+from common import env, parse_clip_timestamps_list  # noqa: E402
 
 MANIFEST_PATH = "run_data/manifest.json"
 CLIPS_RESULT_PATH = "run_data/clips_result.json"
-CLIP_DURATION_SECONDS = 30
+DEFAULT_CLIP_DURATION_SECONDS = 30
 CLIPS_DIR = "clips"
 MAX_CLIPS = 10
 
 
-def compute_clip_starts(count: int, duration: float) -> list[float]:
+def resolve_clip_duration() -> int:
+    try:
+        value = int(env("CLIP_DURATION", str(DEFAULT_CLIP_DURATION_SECONDS)) or DEFAULT_CLIP_DURATION_SECONDS)
+    except ValueError:
+        return DEFAULT_CLIP_DURATION_SECONDS
+    return value if value > 0 else DEFAULT_CLIP_DURATION_SECONDS
+
+
+def compute_clip_starts(count: int, duration: float, clip_duration: int) -> list[float]:
     """Reparte 'count' instantes de inicio a lo largo del vídeo, dejando un
     margen al principio y al final para no caer en intro/outro ni cortarse."""
-    if count <= 0 or duration <= CLIP_DURATION_SECONDS:
+    if count <= 0 or duration <= clip_duration:
         return []
     margin = min(duration * 0.05, 60)
     usable_start = margin
-    usable_end = max(duration - margin - CLIP_DURATION_SECONDS, usable_start)
+    usable_end = max(duration - margin - clip_duration, usable_start)
     if usable_end <= usable_start:
-        return [max((duration - CLIP_DURATION_SECONDS) / 2, 0)]
+        return [max((duration - clip_duration) / 2, 0)]
     if count == 1:
         return [usable_start + (usable_end - usable_start) / 2]
     step = (usable_end - usable_start) / (count - 1)
     return [usable_start + step * i for i in range(count)]
 
 
-def extract_clip(video_path: str, start_seconds: float, output_path: str) -> bool:
+def extract_clip(video_path: str, start_seconds: float, clip_duration: int, output_path: str) -> bool:
     try:
         subprocess.run(
             [
                 "ffmpeg", "-y",
                 "-ss", str(start_seconds),
                 "-i", video_path,
-                "-t", str(CLIP_DURATION_SECONDS),
+                "-t", str(clip_duration),
                 "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
                 "-c:a", "aac",
                 "-movflags", "+faststart",
@@ -90,12 +101,22 @@ def commit_clip_to_repo(clip_path: str, repo_path: str) -> str | None:
         return None
 
 
-def main() -> None:
-    clip_count = min(int(env("CLIP_COUNT", "0") or 0), MAX_CLIPS)
-    if clip_count <= 0:
-        print("No se pidieron clips.")
-        return
+def resolve_starts(duration: float, clip_duration: int) -> list[float]:
+    manual = parse_clip_timestamps_list(env("CLIP_TIMESTAMPS"), duration)
+    if manual:
+        # Se descartan las marcas que, aun estando dentro del vídeo, no
+        # dejan sitio para un clip completo (p. ej. a 2s del final).
+        valid = [s for s in manual if s + clip_duration <= duration]
+        skipped = len(manual) - len(valid)
+        if skipped:
+            print(f"Aviso: se omiten {skipped} marca(s) manual(es) por no dejar sitio para un clip completo.")
+        return valid[:MAX_CLIPS]
 
+    clip_count = min(int(env("CLIP_COUNT", "0") or 0), MAX_CLIPS)
+    return compute_clip_starts(clip_count, duration, clip_duration)
+
+
+def main() -> None:
     if not os.path.exists(MANIFEST_PATH):
         print("Aviso: no hay manifiesto de descarga; se omiten los clips.")
         return
@@ -103,9 +124,10 @@ def main() -> None:
         manifest = json.load(f)
 
     duration = manifest.get("duration") or 0
-    starts = compute_clip_starts(clip_count, duration)
+    clip_duration = resolve_clip_duration()
+    starts = resolve_starts(duration, clip_duration)
     if not starts:
-        print("Aviso: el VOD es demasiado corto para sacar clips de 30s; se omiten.")
+        print("No se pidieron clips, o el VOD es demasiado corto para el tamaño de clip elegido.")
         return
 
     os.makedirs(CLIPS_DIR, exist_ok=True)
@@ -115,7 +137,7 @@ def main() -> None:
     for i, start in enumerate(starts, start=1):
         clip_path = os.path.join(CLIPS_DIR, f"clip-{i}.mp4")
         print(f"Extrayendo clip {i}/{len(starts)} en el segundo {start:.0f}…")
-        if not extract_clip(manifest["filepath"], start, clip_path):
+        if not extract_clip(manifest["filepath"], start, clip_duration, clip_path):
             continue
 
         repo_path = f"clip_output/{run_id}/clip-{i}.mp4"
@@ -140,3 +162,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

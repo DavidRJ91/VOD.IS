@@ -12,7 +12,13 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 from common import die, env  # noqa: E402
-from youtube_common import YouTubeError, get_authenticated_service, set_thumbnail, upload_video  # noqa: E402
+from youtube_common import (  # noqa: E402
+    YouTubeError,
+    add_to_playlist,
+    get_authenticated_service,
+    set_thumbnail,
+    upload_video,
+)
 
 MANIFEST_PATH = "run_data/manifest.json"
 RESULT_PATH = "run_data/result.json"
@@ -42,6 +48,9 @@ def main() -> None:
         )
         if set_thumbnail(youtube, video_id, manifest.get("thumbnail_path")):
             print("Portada aplicada.")
+        playlist_id = env("PLAYLIST_ID")
+        if playlist_id and add_to_playlist(youtube, playlist_id, video_id):
+            print("Añadido a la lista de reproducción.")
     except YouTubeError as exc:
         die(str(exc))
         return

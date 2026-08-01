@@ -112,3 +112,25 @@ def set_thumbnail(youtube, video_id: str, thumbnail_path: str) -> bool:
             f"verificado en youtube.com/verify. Detalle: {exc}"
         )
         return False
+
+
+def add_to_playlist(youtube, playlist_id: str, video_id: str) -> bool:
+    """Añade el vídeo a una lista de reproducción; un fallo aquí no debe
+    tumbar la subida ya hecha (p. ej. si el ID de la lista es incorrecto o
+    no te pertenece)."""
+    if not playlist_id:
+        return False
+    try:
+        youtube.playlistItems().insert(
+            part="snippet",
+            body={
+                "snippet": {
+                    "playlistId": playlist_id,
+                    "resourceId": {"kind": "youtube#video", "videoId": video_id},
+                }
+            },
+        ).execute()
+        return True
+    except HttpError as exc:
+        print(f"Aviso: no se pudo añadir el vídeo a la lista de reproducción ({exc}).")
+        return False

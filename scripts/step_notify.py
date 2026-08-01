@@ -1,12 +1,14 @@
-"""Paso 3 del workflow: notifica en Discord el resultado (éxito o fallo)."""
+"""Paso 3 del workflow: notifica en Discord el resultado (éxito o fallo) y
+deja constancia en el historial de la página (run_status/history.json)."""
 from __future__ import annotations
 
+import datetime as dt
 import json
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
-from common import env, notify_discord  # noqa: E402
+from common import append_history_entry, env, notify_discord  # noqa: E402
 
 MANIFEST_PATH = "run_data/manifest.json"
 RESULT_PATH = "run_data/result.json"
@@ -28,7 +30,19 @@ def main() -> None:
     vod_url = manifest.get("source_url") or env("VOD_URL") or "desconocido"
     title = result.get("title") or manifest.get("title") or vod_url
 
+    history_entry = {
+        "run_id": env("GITHUB_RUN_ID"),
+        "timestamp": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "outcome": outcome,
+        "vod_url": vod_url,
+        "title": title,
+        "clip_count": len(clips),
+    }
+
     if outcome == "success" and result:
+        history_entry["video_url"] = result.get("video_url")
+        history_entry["privacy"] = result.get("privacy")
+
         fields = [
             {"name": "Origen", "value": result.get("source_url", vod_url), "inline": False},
             {"name": "YouTube", "value": result["video_url"], "inline": False},
@@ -50,6 +64,7 @@ def main() -> None:
         )
     else:
         run_url = f"{env('GITHUB_SERVER_URL')}/{env('GITHUB_REPOSITORY')}/actions/runs/{env('GITHUB_RUN_ID')}"
+        history_entry["run_url"] = run_url
         notify_discord(
             {
                 "title": "Fallo en la subida",
@@ -61,6 +76,8 @@ def main() -> None:
                 ],
             }
         )
+
+    append_history_entry(history_entry)
 
 
 if __name__ == "__main__":
