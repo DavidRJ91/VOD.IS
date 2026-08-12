@@ -3,9 +3,27 @@ name: Procesar VOD
 on:
   workflow_dispatch:
     inputs:
-      vod_url:
-        description: "Enlace del VOD (Twitch o Kick)"
+      mode:
+        description: "Qué procesar"
         required: true
+        default: "vod"
+        type: choice
+        options:
+          - "vod"
+          - "live_simple"
+          - "live_chunked"
+      vod_url:
+        description: "Enlace del VOD (Twitch o Kick) — solo para mode=vod"
+        required: false
+        default: ""
+      live_channel_url:
+        description: "Enlace del canal de Twitch EN DIRECTO — solo para mode=live_simple o live_chunked"
+        required: false
+        default: ""
+      chunk_minutes:
+        description: "Minutos por parte en modo 'por partes' (mode=live_chunked)"
+        required: false
+        default: "25"
       title:
         description: "Título en YouTube (vacío = usar el original)"
         required: false
@@ -37,11 +55,11 @@ on:
           - "1080"
           - "best"
       trim_start:
-        description: "Recortar el VOD desde este instante (HH:MM:SS). Vacío = desde el principio."
+        description: "Recortar el VOD desde este instante (HH:MM:SS). Solo mode=vod. Vacío = desde el principio."
         required: false
         default: ""
       trim_end:
-        description: "Recortar el VOD hasta este instante (HH:MM:SS). Vacío = hasta el final."
+        description: "Recortar el VOD hasta este instante (HH:MM:SS). Solo mode=vod. Vacío = hasta el final."
         required: false
         default: ""
       playlist_id:
@@ -61,7 +79,7 @@ on:
         required: false
         default: ""
       clip_count:
-        description: "Cuántos clips crear a partir del VOD, repartidos automáticamente (0 = ninguno; se ignora si rellenas clip_timestamps)"
+        description: "Cuántos clips crear a partir del VOD, repartidos automáticamente (0 = ninguno; se ignora si rellenas clip_timestamps). Solo mode=vod o live_simple."
         required: false
         default: "0"
       clip_timestamps:
@@ -85,7 +103,10 @@ jobs:
     permissions:
       contents: write
     env:
+      MODE: ${{ inputs.mode }}
       VOD_URL: ${{ inputs.vod_url }}
+      LIVE_CHANNEL_URL: ${{ inputs.live_channel_url }}
+      CHUNK_MINUTES: ${{ inputs.chunk_minutes }}
       VIDEO_TITLE: ${{ inputs.title }}
       VIDEO_DESCRIPTION: ${{ inputs.description }}
       PRIVACY: ${{ inputs.privacy }}
@@ -121,39 +142,53 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Descargar VOD
+        if: inputs.mode == 'vod'
         run: python scripts/step_download.py
 
       - name: Recortar VOD
+        if: inputs.mode == 'vod'
         run: python scripts/step_trim.py
 
+      - name: Grabar directo (completo)
+        if: inputs.mode == 'live_simple'
+        run: python scripts/step_live_record_simple.py
+
       - name: Preparar miniatura
+        if: inputs.mode == 'vod' || inputs.mode == 'live_simple'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/step_thumbnail.py
 
       - name: Subir a YouTube
+        if: inputs.mode == 'vod' || inputs.mode == 'live_simple'
         run: python scripts/step_upload.py
 
       - name: Crear clips
-        if: success()
+        if: success() && (inputs.mode == 'vod' || inputs.mode == 'live_simple')
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/step_clips.py
 
+      - name: Grabar y subir directo por partes
+        if: inputs.mode == 'live_chunked'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/step_live_record_chunked.py
+
       - name: Publicar resultado
-        if: success()
+        if: success() && inputs.mode != 'live_chunked'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/step_publish_result.py
 
       - name: Notificar éxito
-        if: success()
+        if: success() && inputs.mode != 'live_chunked'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/step_notify.py success
 
       - name: Notificar fallo
-        if: failure()
+        if: failure() && inputs.mode != 'live_chunked'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/step_notify.py failure
