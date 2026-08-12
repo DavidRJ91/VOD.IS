@@ -1,7 +1,8 @@
 """Lógica compartida de YouTube: autenticación, subida de vídeo y portada.
 
 Usado tanto por step_upload.py (el VOD completo) como por step_clips.py
-(los clips cortos), para no duplicar la parte de autenticación/subida.
+(los clips cortos) y por los pasos de grabación de directos, para no
+duplicar la parte de autenticación/subida.
 """
 from __future__ import annotations
 

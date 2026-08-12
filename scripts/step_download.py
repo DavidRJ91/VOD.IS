@@ -3,30 +3,14 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 import sys
 
 import yt_dlp
 
 sys.path.insert(0, os.path.dirname(__file__))
-from common import detect_platform, die, env, format_for_quality  # noqa: E402
+from common import detect_platform, die, env, format_for_quality, probe_duration_seconds  # noqa: E402
 
 MANIFEST_PATH = "run_data/manifest.json"
-
-
-def probe_duration_seconds(filepath: str) -> float:
-    """Duración real del archivo ya descargado, vía ffprobe. Más fiable que
-    el metadato que reporta la plataforma (Kick en particular a veces no
-    lo da), y es lo que de verdad importa para repartir los clips."""
-    try:
-        out = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", filepath],
-            capture_output=True, text=True, check=True, timeout=30,
-        )
-        return float(out.stdout.strip())
-    except (subprocess.CalledProcessError, ValueError, OSError, subprocess.TimeoutExpired) as exc:
-        print(f"Aviso: no se pudo calcular la duración real con ffprobe ({exc}).")
-        return 0.0
 
 
 def main() -> None:

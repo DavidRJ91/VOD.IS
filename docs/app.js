@@ -1,15 +1,15 @@
-/* VOD → YouTube — dispara el workflow de GitHub Actions, sube la miniatura si hace falta, y sigue el progreso. */
+/* VOD → YouTube — dispara el workflow de GitHub Actions y sigue su progreso. */
 (() => {
   "use strict";
-
-  const STORAGE_KEY = "vod2youtube.connection";
-  const MAX_THUMB_BYTES = 2 * 1024 * 1024;
 
   const els = {
     form: document.getElementById("vodForm"),
     submitBtn: document.getElementById("submitBtn"),
     retryLastBtn: document.getElementById("retryLastBtn"),
+    modeHint: document.getElementById("modeHint"),
     vodUrl: document.getElementById("vodUrl"),
+    liveChannelUrl: document.getElementById("liveChannelUrl"),
+    chunkMinutes: document.getElementById("chunkMinutes"),
     title: document.getElementById("title"),
     description: document.getElementById("description"),
     loadTemplateBtn: document.getElementById("loadTemplateBtn"),
@@ -48,16 +48,26 @@
 
   const TEMPLATE_KEY = "vod2youtube.template";
   const LAST_SUBMISSION_KEY = "vod2youtube.lastSubmission";
+  const STORAGE_KEY = "vod2youtube.connection";
+  const MAX_THUMB_BYTES = 2 * 1024 * 1024;
 
   const WORKFLOW_FILE = "process-vod.yml";
-  const STEP_TO_LAMP = {
-    "Descargar VOD": "descarga",
-    "Subir a YouTube": "youtube",
-    "Notificar éxito": "discord",
-    "Notificar fallo": "discord",
+  const STEP_TO_LAMPS = {
+    "Descargar VOD": ["descarga"],
+    "Grabar directo (completo)": ["descarga"],
+    "Grabar y subir directo por partes": ["descarga", "youtube"],
+    "Subir a YouTube": ["youtube"],
+    "Notificar éxito": ["discord"],
+    "Notificar fallo": ["discord"],
   };
 
-  let selectedFile = null; // { name, size, base64, dataUrl }
+  const MODE_HINTS = {
+    vod: "Sube un VOD ya terminado de Twitch o Kick.",
+    live_simple: "Graba el directo entero de un tirón y lo sube al terminar (o al llegar al tope de tiempo). No hay copia de seguridad hasta que la grabación termina.",
+    live_chunked: "Graba y sube en partes según avanza el directo — si algo falla a mitad, solo se pierde el trozo en curso, no todo lo grabado hasta entonces.",
+  };
+
+  let selectedFile = null; // { name, size, type, base64 }
   let stopwatchHandle = null;
   let stopwatchStartMs = null;
 
@@ -106,7 +116,7 @@
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
-  // ------------------------------------------------------------- stopwatch
+  // ------------------------------------------------------------- estopwatch
   function formatElapsed(ms) {
     const totalSeconds = Math.floor(ms / 1000);
     const h = Math.floor(totalSeconds / 3600);
@@ -185,6 +195,29 @@
     );
   }
 
+  // ---------------------------------------------------------- modo (VOD/directo)
+  function currentMode() {
+    return els.form.querySelector('input[name="mode"]:checked').value;
+  }
+
+  function applyModeVisibility() {
+    const mode = currentMode();
+    els.modeHint.textContent = MODE_HINTS[mode] || "";
+
+    document.querySelectorAll(".show-for-vod").forEach((el) => {
+      el.classList.toggle("mode-visible", mode === "vod");
+    });
+    document.querySelectorAll(".show-for-live").forEach((el) => {
+      el.classList.toggle("mode-visible", mode === "live_simple" || mode === "live_chunked");
+    });
+    document.querySelectorAll(".show-for-chunked").forEach((el) => {
+      el.classList.toggle("mode-visible", mode === "live_chunked");
+    });
+    document.querySelectorAll(".hide-for-chunked").forEach((el) => {
+      el.classList.toggle("mode-hidden", mode === "live_chunked");
+    });
+  }
+
   // ---------------------------------------------------------- plantillas
   function saveTemplate() {
     localStorage.setItem(
@@ -214,7 +247,10 @@
   // ------------------------------------------------- reintentar el último envío
   function currentFormStateForRetry() {
     return {
+      mode: currentMode(),
       vodUrl: els.vodUrl.value.trim(),
+      liveChannelUrl: els.liveChannelUrl.value.trim(),
+      chunkMinutes: els.chunkMinutes.value,
       title: els.title.value.trim(),
       description: els.description.value.trim(),
       trimStart: els.trimStart.value.trim(),
@@ -226,8 +262,6 @@
       clipCount: els.clipCount.value,
       clipTimestamps: els.clipTimestamps.value.trim(),
       clipDuration: els.clipDuration.value,
-      // La fuente "file" no se puede recordar (el archivo no cabe en localStorage
-      // de forma razonable); al reintentar, como mucho se recupera la URL.
       thumbSource: currentThumbSource() === "file" ? "auto" : currentThumbSource(),
       thumbnailUrl: els.thumbnailUrl.value.trim(),
     };
@@ -238,7 +272,14 @@
   }
 
   function applyFormState(state) {
+    const modeInput = document.getElementById(
+      `mode-${(state.mode || "vod").replace(/_/g, "-")}`
+    );
+    if (modeInput) modeInput.checked = true;
+
     els.vodUrl.value = state.vodUrl || "";
+    els.liveChannelUrl.value = state.liveChannelUrl || "";
+    els.chunkMinutes.value = state.chunkMinutes || "25";
     els.title.value = state.title || "";
     els.description.value = state.description || "";
     els.trimStart.value = state.trimStart || "";
@@ -257,6 +298,7 @@
     const thumbInput = document.getElementById(`thumb-${state.thumbSource || "auto"}`);
     if (thumbInput) thumbInput.checked = true;
 
+    applyModeVisibility();
     togglePrivacyFields();
     toggleThumbFields();
   }
@@ -287,12 +329,15 @@
     const titleHtml = ok && entry.video_url
       ? `<a class="history-item-title" href="${entry.video_url}" target="_blank" rel="noopener">${entry.title || entry.vod_url}</a>`
       : `<span class="history-item-title">${entry.title || entry.vod_url}</span>`;
-    const clipsText = entry.clip_count ? ` · ${entry.clip_count} clip(s)` : "";
+    const extraBits = [];
+    if (entry.clip_count) extraBits.push(`${entry.clip_count} clip(s)`);
+    if (entry.live_parts_count) extraBits.push(`${entry.live_parts_count} parte(s)`);
+    const extraText = extraBits.length ? ` · ${extraBits.join(" · ")}` : "";
     return `
       <div class="history-item">
         <div class="history-item-main">
           ${titleHtml}
-          <div class="history-item-meta">${formatHistoryDate(entry.timestamp)}${clipsText}</div>
+          <div class="history-item-meta">${formatHistoryDate(entry.timestamp)}${extraText}</div>
         </div>
         <span class="history-item-status ${ok ? "success" : "failure"}">${ok ? "OK" : "Falló"}</span>
       </div>`;
@@ -403,7 +448,7 @@
     const path = `run_status/${runId}.json`;
     const url = `https://api.github.com/repos/${conn.owner}/${conn.repo}/contents/${path}?ref=${conn.branch}`;
     const res = await fetch(url, { headers: ghHeaders(conn.token, false) });
-    if (res.status === 404) return null; // el paso "Publicar resultado" no llegó a correr (p. ej. sin clips y sin querer galería)
+    if (res.status === 404) return null;
     if (!res.ok) throw new Error(`GitHub respondió ${res.status} al leer el resultado.`);
     const data = await res.json();
     const bytes = Uint8Array.from(atob(data.content.replace(/\n/g, "")), (c) => c.charCodeAt(0));
@@ -418,7 +463,6 @@
       headers: ghHeaders(conn.token, true),
       body: JSON.stringify({ message: `chore: limpiar archivo temporal (${path})`, sha, branch: conn.branch }),
     });
-    // Si falla la limpieza no pasa nada grave: es un archivo temporal, y el próximo envío usa otra ruta.
   }
 
   function formatMB(bytes) {
@@ -460,8 +504,6 @@
       loadBtn.remove();
       container.append(video, downloadLink);
 
-      // Ya tenemos el clip en el navegador (como blob): no hace falta dejarlo
-      // en el repositorio ni un segundo más.
       await deleteFromRepo(conn, clip.repo_path, clip.sha);
     } catch (err) {
       loadBtn.disabled = false;
@@ -516,6 +558,13 @@
       hasContent = true;
     }
 
+    (payload.live_parts || []).forEach((part) => {
+      const wrap = document.createElement("div");
+      wrap.innerHTML = resultItemHtml(`Parte ${part.part_number}`, part.video_id, part.video_url, part.video_url);
+      els.resultsList.appendChild(wrap.firstElementChild);
+      hasContent = true;
+    });
+
     (payload.clips || []).forEach((clip, i) => {
       els.resultsList.appendChild(buildClipItem(conn, clip, i));
       hasContent = true;
@@ -530,7 +579,7 @@
     try {
       const found = await fetchResultFromRepo(conn, runId);
       if (!found) {
-        setStatus("Completado, pero no encontré datos de resultado para mostrar la galería (¿acabó bien el paso «Publicar resultado»?).");
+        setStatus("Completado, pero no encontré datos de resultado para mostrar la galería.");
         return;
       }
       renderResults(conn, found.payload);
@@ -544,7 +593,7 @@
   async function pollRun(conn, run) {
     setStatusHtml(`En marcha — <a href="${run.html_url}" target="_blank" rel="noopener">ver registro en GitHub</a>`);
 
-    const maxIterations = 5100; // ~340 min a 4s por vuelta, igual que el timeout del workflow
+    const maxIterations = 5100;
     for (let i = 0; i < maxIterations; i += 1) {
       await sleep(4000);
 
@@ -560,8 +609,8 @@
       if (!job) continue;
 
       (job.steps || []).forEach((step) => {
-        const lampKey = STEP_TO_LAMP[step.name];
-        if (lampKey) setLamp(lampKey, lampStateForStep(step));
+        const lampKeys = STEP_TO_LAMPS[step.name];
+        if (lampKeys) lampKeys.forEach((k) => setLamp(k, lampStateForStep(step)));
       });
 
       if (job.status === "completed") {
@@ -628,14 +677,29 @@
   async function handleSubmit(event) {
     event.preventDefault();
 
-    const vodUrl = els.vodUrl.value.trim();
-    const platform = detectPlatform(vodUrl);
-    if (!platform) {
-      setStatus("Ese enlace no parece ser de Twitch ni de Kick.", "error");
-      return;
+    const mode = currentMode();
+    let vodUrl = "";
+    let liveChannelUrl = "";
+
+    if (mode === "vod") {
+      vodUrl = els.vodUrl.value.trim();
+      if (!vodUrl || !detectPlatform(vodUrl)) {
+        setStatus("Pega un enlace de VOD de Twitch o Kick.", "error");
+        return;
+      }
+    } else {
+      liveChannelUrl = els.liveChannelUrl.value.trim();
+      if (!liveChannelUrl || !liveChannelUrl.toLowerCase().includes("twitch.tv")) {
+        setStatus("Pega la URL de tu canal de Twitch (no la de un VOD).", "error");
+        return;
+      }
+      if (liveChannelUrl.toLowerCase().includes("/video")) {
+        setStatus("Esto parece un enlace de VOD. Para grabar un directo, usa la URL del canal (twitch.tv/tu_canal).", "error");
+        return;
+      }
     }
 
-    const thumbSource = currentThumbSource();
+    const thumbSource = mode === "live_chunked" ? "auto" : currentThumbSource();
     if (thumbSource === "file" && !selectedFile) {
       setStatus("Elige una imagen, o cambia a «Automática»/«Desde URL».", "error");
       return;
@@ -686,25 +750,33 @@
       let thumbnailUrlInput = "";
       let thumbnailRepoPathInput = "";
 
-      if (thumbSource === "file") {
-        setStatus("Subiendo la miniatura a tu repositorio…");
-        thumbnailRepoPathInput = await uploadThumbnailToRepo(conn, selectedFile, selectedFile.base64);
-      } else if (thumbSource === "url") {
-        thumbnailUrlInput = els.thumbnailUrl.value.trim();
+      if (mode !== "live_chunked") {
+        if (thumbSource === "file") {
+          setStatus("Subiendo la miniatura a tu repositorio…");
+          thumbnailRepoPathInput = await uploadThumbnailToRepo(conn, selectedFile, selectedFile.base64);
+        } else if (thumbSource === "url") {
+          thumbnailUrlInput = els.thumbnailUrl.value.trim();
+        }
       }
 
       const inputs = {
+        mode,
         vod_url: vodUrl,
+        live_channel_url: liveChannelUrl,
+        chunk_minutes: els.chunkMinutes.value || "25",
         title: els.title.value.trim(),
         description: els.description.value.trim(),
         privacy,
         scheduled_at: scheduledAtIso,
         quality: els.quality.value,
-        trim_start: els.trimStart.value.trim(),
-        trim_end: els.trimEnd.value.trim(),
+        trim_start: mode === "vod" ? els.trimStart.value.trim() : "",
+        trim_end: mode === "vod" ? els.trimEnd.value.trim() : "",
         playlist_id: els.playlistId.value.trim(),
-        clip_count: String(Math.max(0, Math.min(10, parseInt(els.clipCount.value, 10) || 0))),
-        clip_timestamps: els.clipTimestamps.value.trim(),
+        clip_count:
+          mode === "live_chunked"
+            ? "0"
+            : String(Math.max(0, Math.min(10, parseInt(els.clipCount.value, 10) || 0))),
+        clip_timestamps: mode === "live_chunked" ? "" : els.clipTimestamps.value.trim(),
         clip_duration: els.clipDuration.value,
         thumbnail_url: thumbnailUrlInput,
         thumbnail_repo_path: thumbnailRepoPathInput,
@@ -771,6 +843,11 @@
     applyConfigModeVisibility();
     resetLamps();
     els.stopwatchTime.textContent = "00:00";
+
+    els.form.querySelectorAll('input[name="mode"]').forEach((el) => {
+      el.addEventListener("change", applyModeVisibility);
+    });
+    applyModeVisibility();
 
     els.form.querySelectorAll('input[name="privacy"]').forEach((el) => {
       el.addEventListener("change", togglePrivacyFields);

@@ -104,8 +104,6 @@ def commit_clip_to_repo(clip_path: str, repo_path: str) -> str | None:
 def resolve_starts(duration: float, clip_duration: int) -> list[float]:
     manual = parse_clip_timestamps_list(env("CLIP_TIMESTAMPS"), duration)
     if manual:
-        # Se descartan las marcas que, aun estando dentro del vídeo, no
-        # dejan sitio para un clip completo (p. ej. a 2s del final).
         valid = [s for s in manual if s + clip_duration <= duration]
         skipped = len(manual) - len(valid)
         if skipped:
@@ -162,4 +160,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

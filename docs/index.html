@@ -13,7 +13,7 @@
 <div class="page">
 
   <h1>VOD → YouTube</h1>
-  <p class="subtitle">Pega el enlace de un VOD de Twitch o Kick. Esta página lo pone en marcha; la descarga, la subida y el aviso a Discord ocurren en GitHub, no en tu navegador.</p>
+  <p class="subtitle">Pega el enlace de un VOD terminado, o el de un canal en directo para grabarlo mientras emites. La descarga, la subida y el aviso a Discord ocurren en GitHub, no en tu navegador.</p>
 
   <div class="stopwatch">
     <div>
@@ -48,8 +48,33 @@
     </div>
 
     <div class="field">
+      <label>Qué vas a procesar</label>
+      <div class="segmented">
+        <input type="radio" name="mode" id="mode-vod" value="vod" checked />
+        <label for="mode-vod">VOD terminado</label>
+        <input type="radio" name="mode" id="mode-live-simple" value="live_simple" />
+        <label for="mode-live-simple">Directo — todo junto</label>
+        <input type="radio" name="mode" id="mode-live-chunked" value="live_chunked" />
+        <label for="mode-live-chunked">Directo — por partes</label>
+      </div>
+      <p class="hint" id="modeHint">Sube un VOD ya terminado de Twitch o Kick.</p>
+    </div>
+
+    <div class="field show-for-vod">
       <label for="vodUrl">Enlace del VOD</label>
-      <input type="url" id="vodUrl" placeholder="https://www.twitch.tv/videos/… o https://kick.com/…/videos/…" required />
+      <input type="url" id="vodUrl" placeholder="https://www.twitch.tv/videos/… o https://kick.com/…/videos/…" />
+    </div>
+
+    <div class="field show-for-live">
+      <label for="liveChannelUrl">Canal de Twitch en directo</label>
+      <input type="url" id="liveChannelUrl" placeholder="https://www.twitch.tv/tu_canal" />
+      <span class="hint">La URL de tu canal (no la de un VOD) — solo funciona mientras estés emitiendo de verdad.</span>
+    </div>
+
+    <div class="field show-for-chunked">
+      <label for="chunkMinutes">Minutos por parte</label>
+      <input type="number" id="chunkMinutes" min="5" max="60" value="25" />
+      <span class="hint">Cada este número de minutos, lo grabado hasta ese momento se sube como una parte independiente ("— Parte 1", "— Parte 2"...), y sigue grabando la siguiente.</span>
     </div>
 
     <div class="field">
@@ -60,7 +85,7 @@
           <button type="button" id="saveTemplateBtn" class="ghost-btn-sm">Guardar como plantilla</button>
         </div>
       </div>
-      <input type="text" id="title" placeholder="Vacío = se usa el título original del VOD" />
+      <input type="text" id="title" placeholder="Vacío = se usa el título original" />
     </div>
 
     <div class="field">
@@ -69,7 +94,7 @@
       <span class="hint">"Guardar como plantilla" recuerda el título y la descripción actuales en este navegador, para poder cargarlos en el próximo envío.</span>
     </div>
 
-    <div class="field">
+    <div class="field show-for-vod">
       <label>Recortar el vídeo principal (opcional)</label>
       <div class="two-col">
         <div>
@@ -84,7 +109,7 @@
       <span class="hint">Para quitar el rato muerto antes de empezar o al final. Vacío en ambos = se sube el VOD entero. Los clips y la portada se calculan sobre el vídeo ya recortado.</span>
     </div>
 
-    <div class="field">
+    <div class="field hide-for-chunked">
       <label>Portada del vídeo</label>
       <div class="segmented">
         <input type="radio" name="thumbSource" id="thumb-auto" value="auto" checked />
@@ -138,7 +163,7 @@
       <span class="hint">El ID que aparece después de <code>list=</code> en la URL de la lista. Vacío = no se añade a ninguna.</span>
     </div>
 
-    <div class="field">
+    <div class="field show-for-vod">
       <label for="quality">Calidad máxima de descarga</label>
       <select id="quality">
         <option value="720">720p</option>
@@ -148,7 +173,7 @@
       <span class="hint">Los runners de GitHub tienen disco y tiempo limitados; 1080p es un buen punto de partida para VODs largos.</span>
     </div>
 
-    <div class="field">
+    <div class="field hide-for-chunked">
       <label for="clipCount">Clips cortos a crear</label>
       <input type="number" id="clipCount" min="0" max="10" value="0" />
       <span class="hint">Repartidos automáticamente a lo largo del VOD. Se ignora si rellenas las marcas manuales de abajo. No se suben a YouTube: al terminar podrás reproducirlos y descargarlos desde esta misma página. Máximo 10.</span>
@@ -170,7 +195,7 @@
     </div>
 
     <div class="field">
-      <button type="submit" id="submitBtn">Enviar VOD</button>
+      <button type="submit" id="submitBtn">Enviar</button>
     </div>
   </form>
 
@@ -204,7 +229,7 @@
       <div class="field">
         <label for="ghToken">Token de acceso personal</label>
         <input type="password" id="ghToken" placeholder="ghp_… o github_pat_…" />
-        <span class="hint">Necesita permisos de Actions (leer/escribir) y de Contenido (leer/escribir) sobre este repositorio — el segundo es nuevo, para poder subir la imagen de portada. Se usa directamente desde tu navegador hacia GitHub; no pasa por ningún otro servidor.</span>
+        <span class="hint">Necesita permisos de Actions (leer/escribir) y de Contenido (leer/escribir) sobre este repositorio. Se usa directamente desde tu navegador hacia GitHub; no pasa por ningún otro servidor.</span>
         <div class="checkbox-row">
           <input type="checkbox" id="rememberToken" checked />
           <label for="rememberToken">Recordar en este navegador</label>
