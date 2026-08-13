@@ -14,7 +14,7 @@ canal de Twitch **mientras estás emitiendo** para grabarlo. Hay un
 selector arriba del todo con tres modos:
 
 - **VOD terminado** — el modo de siempre: pegas el enlace de un VOD ya
-  publicado en Twitch o Kick.
+  publicado en Twitch.
 - **Directo — todo junto** — graba el directo entero de un tirón y lo
   sube a YouTube **cuando termina** (o al llegar al tope de tiempo de la
   ejecución, lo que pase antes). Sencillo, pero sin protección real
@@ -44,44 +44,24 @@ selector arriba del todo con tres modos:
   cuanto está lista (al final del todo, o por trozos según avanza). Si lo
   que buscas es simultanear de verdad como con Restream u otros
   servicios de multistreaming, esto no lo sustituye.
-- **No lo he podido probar contra un directo real.** No tengo forma de
-  simular un directo de Twitch de verdad para comprobar esta función de
-  principio a fin; sí probé a fondo cada pieza por separado (detección de
-  si el canal está en directo, interrupción segura de la grabación,
-  bucle de trozos, subida, avisos) con herramientas simuladas. Antes de
-  confiar en esto para algo importante, haz una prueba corta con un
+- **No lo he podido probar contra un directo real.
+**Antes de confiar en esto para algo importante, haz una prueba corta con un
   directo real y comprueba que el resultado te vale.
 - **Portada y clips**: en modo "todo junto" funcionan igual que con un
   VOD normal (se aplican una vez termina la grabación). En modo "por
   partes" no están disponibles — cada parte sale con la portada
   automática que pone YouTube.
 
-## 1. Sube este proyecto a GitHub
-
-Si ya tenías una versión anterior en tu repositorio: reemplaza estos
-archivos por los de este zip —
-
-- **Nuevo:** `scripts/live_capture.py`, `scripts/step_live_record_simple.py`,
-  `scripts/step_live_record_chunked.py`.
-- **Cambia:** `.github/workflows/process-vod.yml`, `docs/index.html`,
-  `docs/style.css`, `docs/app.js`. Más seguro abrir cada uno en GitHub,
-  borrar su contenido y pegar el nuevo, que editar a mano.
-- El resto de `scripts/*.py` no cambia si ya los tenías de una ronda
-  anterior.
-- Todo lo demás (tus 4 secretos de YouTube/Discord, el token, Pages)
-  sigue exactamente igual — no hay permisos nuevos que configurar.
-
-## 2. Activa GitHub Pages (si no lo hiciste ya)
+## 1. Activa GitHub Pages
 
 **Settings → Pages → Build and deployment → Source: Deploy from a
 branch → Branch: `main` / carpeta `/docs`.**
 
-## 3. Tu token
+## 2. Tu token
 
-Sigue necesitando **Actions: Read and write** y **Contents: Read and
-write**. No hay permisos nuevos en esta versión.
+**Actions: Read and write** y **Contents: Read and write**.
 
-## 4. Úsalo
+## 3. Úsalo
 
 Guarda para ti el enlace con `?config` al final — es el único sitio
 donde ves y configuras usuario, repositorio y token. Para el día a día,
