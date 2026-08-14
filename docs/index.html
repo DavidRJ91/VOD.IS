@@ -145,7 +145,7 @@
         </aside>
       </section>
 
-      <section id="resultados" class="panel results-gallery" hidden>
+      <section id="resultsGallery" class="panel results-gallery" hidden>
         <div class="panel-head"><div><span class="eyebrow">RESULTADO</span><h2 class="results-title">Producción completada</h2></div></div>
         <div id="resultsList"></div>
       </section>
@@ -175,6 +175,22 @@ document.getElementById('focusLive').addEventListener('click', () => {
   document.getElementById('mode-live-simple').checked = true;
   document.getElementById('mode-live-simple').dispatchEvent(new Event('change', {bubbles:true}));
   document.getElementById('produccion').scrollIntoView({behavior:'smooth'});
+});
+</script>
+<script>
+window.addEventListener("error", function (event) {
+  const status = document.getElementById("status");
+  if (status && event.message) {
+    status.textContent = "Error al cargar la interfaz: " + event.message;
+    status.classList.add("state-error");
+  }
+});
+window.addEventListener("unhandledrejection", function (event) {
+  const status = document.getElementById("status");
+  if (status && event.reason) {
+    status.textContent = "Error: " + (event.reason.message || event.reason);
+    status.classList.add("state-error");
+  }
 });
 </script>
 <script src="app.js"></script>
