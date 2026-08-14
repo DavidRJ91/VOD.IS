@@ -67,7 +67,7 @@
           </div>
           <p class="hint mode-hint" id="modeHint"></p>
 
-          <div class="field show-for-vod">
+          <div class="field show-for-vod mode-visible">
             <label for="vodUrl">ENLACE DEL VOD</label>
             <input id="vodUrl" type="url" placeholder="https://www.twitch.tv/videos/... o https://kick.com/...">
           </div>
@@ -193,6 +193,32 @@ window.addEventListener("unhandledrejection", function (event) {
   }
 });
 </script>
+
+<script>
+(function () {
+  function updateModeFields() {
+    const selected = document.querySelector('input[name="mode"]:checked');
+    if (!selected) return;
+    const mode = selected.value;
+    document.querySelectorAll('.show-for-vod, .show-for-live, .show-for-chunked').forEach(el => {
+      el.classList.remove('mode-visible');
+    });
+    if (mode === 'vod') {
+      document.querySelectorAll('.show-for-vod').forEach(el => el.classList.add('mode-visible'));
+    } else if (mode === 'live_simple') {
+      document.querySelectorAll('.show-for-live').forEach(el => el.classList.add('mode-visible'));
+    } else if (mode === 'live_chunked') {
+      document.querySelectorAll('.show-for-live, .show-for-chunked').forEach(el => el.classList.add('mode-visible'));
+    }
+  }
+  document.querySelectorAll('input[name="mode"]').forEach(input => {
+    input.addEventListener('change', updateModeFields);
+  });
+  document.addEventListener('DOMContentLoaded', updateModeFields);
+  updateModeFields();
+})();
+</script>
+
 <script src="app.js"></script>
 </body>
 </html>
