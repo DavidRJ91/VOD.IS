@@ -1,252 +1,182 @@
 <!doctype html>
 <html lang="es">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<meta name="theme-color" content="#f2f2f7" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="default" />
-<title>VOD → YouTube</title>
-<link rel="stylesheet" href="style.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#08080c">
+  <title>VOD.IS Studio</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="page">
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark">▶</div><div><strong>VOD.IS</strong><small>STUDIO</small></div></div>
+    <div class="workspace"><span class="workspace-avatar">D</span><div><strong>Mi espacio</strong><small>Producción de vídeo</small></div><i></i></div>
+    <nav>
+      <p>ESTUDIO</p>
+      <a class="nav active" href="#studio">⌂ <span>Estudio</span></a>
+      <a class="nav" href="#produccion">↓ <span>Producción</span></a>
+      <a class="nav" href="#resultados">✦ <span>Resultados</span></a>
+      <a class="nav" href="#historial">◷ <span>Historial</span></a>
+      <p>CUENTA</p>
+      <a class="nav" href="?config#conexion">⚙ <span>Ajustes</span></a>
+    </nav>
+    <div class="storage"><div><span>Almacenamiento</span><b>Runner temporal</b></div><div class="storage-bar"><i></i></div><small>Los archivos se eliminan al terminar</small></div>
+  </aside>
 
-  <h1>VOD → YouTube</h1>
-  <p class="subtitle">Pega el enlace de un VOD terminado, o el de un canal en directo para grabarlo mientras emite. La descarga, la subida y el aviso a Discord ocurren en GitHub, no en tu navegador.</p>
+  <main>
+    <header class="topbar">
+      <div class="crumb"><span>VOD.IS</span><b>/</b><strong>Estudio</strong></div>
+      <div class="top-status"><span></span> GitHub Actions</div>
+    </header>
 
-  <div class="stopwatch">
-    <div>
-      <div class="stopwatch-label">Tiempo transcurrido</div>
-      <div class="stopwatch-time" id="stopwatchTime">00:00</div>
-    </div>
-    <div class="stopwatch-ceiling">Tope máximo<br />del proceso: 340 min</div>
-  </div>
-
-  <div class="rail" id="rail" aria-hidden="true">
-    <div class="rail-stop">
-      <div class="lamp" id="lamp-origen"></div>
-      <span class="rail-label">Origen</span>
-    </div>
-    <div class="rail-stop">
-      <div class="lamp" id="lamp-descarga"></div>
-      <span class="rail-label">Descarga</span>
-    </div>
-    <div class="rail-stop">
-      <div class="lamp" id="lamp-youtube"></div>
-      <span class="rail-label">YouTube</span>
-    </div>
-    <div class="rail-stop">
-      <div class="lamp" id="lamp-discord"></div>
-      <span class="rail-label">Discord</span>
-    </div>
-  </div>
-
-  <form class="card" id="vodForm">
-    <div class="field form-actions-row">
-      <button type="button" id="retryLastBtn" class="ghost-btn" hidden>Rellenar con el último envío</button>
-    </div>
-
-    <div class="field">
-      <label>Qué vas a procesar</label>
-      <div class="segmented">
-        <input type="radio" name="mode" id="mode-vod" value="vod" checked />
-        <label for="mode-vod">VOD terminado</label>
-        <input type="radio" name="mode" id="mode-live-simple" value="live_simple" />
-        <label for="mode-live-simple">Directo — todo junto</label>
-        <input type="radio" name="mode" id="mode-live-chunked" value="live_chunked" />
-        <label for="mode-live-chunked">Directo — por partes</label>
-      </div>
-      <p class="hint" id="modeHint">Sube un VOD ya terminado de Twitch o Kick.</p>
-    </div>
-
-    <div class="field show-for-vod">
-      <label for="vodUrl">Enlace del VOD</label>
-      <input type="url" id="vodUrl" placeholder="https://www.twitch.tv/videos/… o https://kick.com/…/videos/…" />
-    </div>
-
-    <div class="field show-for-live">
-      <label for="liveChannelUrl">Canal de Twitch en directo</label>
-      <input type="url" id="liveChannelUrl" placeholder="https://www.twitch.tv/tu_canal" />
-      <span class="hint">La URL de tu canal (no la de un VOD) — solo funciona mientras estés emitiendo de verdad.</span>
-    </div>
-
-    <div class="field show-for-chunked">
-      <label for="chunkMinutes">Minutos por parte</label>
-      <input type="number" id="chunkMinutes" min="5" max="60" value="25" />
-      <span class="hint">Cada este número de minutos, lo grabado hasta ese momento se sube como una parte independiente ("— Parte 1", "— Parte 2"...), y sigue grabando la siguiente.</span>
-    </div>
-
-    <div class="field">
-      <div class="field-label-row">
-        <label for="title">Título en YouTube</label>
-        <div class="template-buttons">
-          <button type="button" id="loadTemplateBtn" class="ghost-btn-sm">Cargar plantilla</button>
-          <button type="button" id="saveTemplateBtn" class="ghost-btn-sm">Guardar como plantilla</button>
+    <div class="page">
+      <section id="studio" class="hero">
+        <div><div class="eyebrow"><i></i> TODO LISTO</div><h1>Centro de producción</h1><p>Descarga VODs, graba directos y publícalos en YouTube desde un único estudio.</p></div>
+        <div class="hero-actions">
+          <a class="btn secondary" href="#produccion">↓ Nuevo VOD</a>
+          <button class="btn primary" type="button" id="focusLive">● Grabar directo</button>
         </div>
-      </div>
-      <input type="text" id="title" placeholder="Vacío = se usa el título original" />
-    </div>
+      </section>
 
-    <div class="field">
-      <label for="description">Descripción</label>
-      <textarea id="description" placeholder="Vacío = se usa la descripción original"></textarea>
-      <span class="hint">"Guardar como plantilla" recuerda el título y la descripción actuales en este navegador, para poder cargarlos en el próximo envío.</span>
-    </div>
+      <section class="pipeline">
+        <div class="stage"><span class="lamp" id="lamp-origen"></span><div><b>01 · ORIGEN</b><small>Fuente preparada</small></div></div>
+        <div class="line"></div>
+        <div class="stage"><span class="lamp" id="lamp-descarga"></span><div><b>02 · DESCARGA</b><small>Obteniendo vídeo</small></div></div>
+        <div class="line"></div>
+        <div class="stage"><span class="lamp" id="lamp-youtube"></span><div><b>03 · YOUTUBE</b><small>Publicando</small></div></div>
+        <div class="line"></div>
+        <div class="stage"><span class="lamp" id="lamp-discord"></span><div><b>04 · DISCORD</b><small>Notificación final</small></div></div>
+      </section>
 
-    <div class="field show-for-vod">
-      <label>Recortar el vídeo principal (opcional)</label>
-      <div class="two-col">
-        <div>
-          <label for="trimStart" class="sublabel">Desde</label>
-          <input type="text" id="trimStart" placeholder="HH:MM:SS" />
+      <section class="metrics">
+        <article><span>Tiempo del proceso</span><strong id="stopwatchTime">00:00</strong><small>Máximo: 340 min</small></article>
+        <article><span>Origen</span><strong>Twitch / Kick</strong><small>Según el modo seleccionado</small></article>
+        <article><span>Destino</span><strong>YouTube</strong><small>Con título, privacidad y playlist</small></article>
+        <article><span>Estado</span><strong>GitHub</strong><small>El procesamiento ocurre en Actions</small></article>
+      </section>
+
+      <section id="produccion" class="studio-grid">
+        <form id="vodForm" class="panel production-panel">
+          <div class="panel-head"><div><span class="eyebrow">NUEVO PROYECTO</span><h2>Preparar producción</h2></div><button type="button" id="retryLastBtn" class="ghost" hidden>↻ Último envío</button></div>
+
+          <div class="mode-grid">
+            <label class="mode-card"><input type="radio" name="mode" id="mode-vod" value="vod" checked><span>↓</span><b>VOD terminado</b><small>Ya está publicado</small></label>
+            <label class="mode-card"><input type="radio" name="mode" id="mode-live-simple" value="live_simple"><span class="red">●</span><b>Directo completo</b><small>Se sube al terminar</small></label>
+            <label class="mode-card"><input type="radio" name="mode" id="mode-live-chunked" value="live_chunked"><span>▤</span><b>Directo por partes</b><small>Sube según avanza</small></label>
+          </div>
+          <p class="hint mode-hint" id="modeHint"></p>
+
+          <div class="field show-for-vod">
+            <label for="vodUrl">ENLACE DEL VOD</label>
+            <input id="vodUrl" type="url" placeholder="https://www.twitch.tv/videos/... o https://kick.com/...">
+          </div>
+          <div class="field show-for-live">
+            <label for="liveChannelUrl">CANAL DE TWITCH EN DIRECTO</label>
+            <input id="liveChannelUrl" type="url" placeholder="https://www.twitch.tv/tu_canal">
+          </div>
+          <div class="field show-for-chunked">
+            <label for="chunkMinutes">MINUTOS POR PARTE</label>
+            <input id="chunkMinutes" type="number" min="5" max="60" value="25">
+          </div>
+
+          <div class="form-row">
+            <div class="field grow">
+              <div class="label-row"><label for="title">TÍTULO EN YOUTUBE</label><span><button type="button" id="loadTemplateBtn" class="text-btn">Cargar</button><button type="button" id="saveTemplateBtn" class="text-btn">Guardar plantilla</button></span></div>
+              <input id="title" type="text" placeholder="Vacío = título original">
+            </div>
+          </div>
+          <div class="field">
+            <label for="description">DESCRIPCIÓN</label>
+            <textarea id="description" placeholder="Vacío = descripción original"></textarea>
+          </div>
+
+          <div class="field">
+            <label>VISIBILIDAD EN YOUTUBE</label>
+            <div class="segmented">
+              <input type="radio" name="privacy" id="privacy-public" value="public"><label for="privacy-public">Público</label>
+              <input type="radio" name="privacy" id="privacy-unlisted" value="unlisted" checked><label for="privacy-unlisted">Oculto</label>
+              <input type="radio" name="privacy" id="privacy-scheduled" value="scheduled"><label for="privacy-scheduled">Programado</label>
+            </div>
+            <div class="schedule-row" id="scheduleRow"><input id="scheduledAt" type="datetime-local"><small>Se convierte automáticamente a UTC.</small></div>
+          </div>
+
+          <details class="advanced" open>
+            <summary>Opciones avanzadas <span>⌄</span></summary>
+            <div class="advanced-body">
+              <div class="show-for-vod">
+                <div class="field"><label>RECORTAR VÍDEO</label><div class="two"><input id="trimStart" type="text" placeholder="Desde HH:MM:SS"><input id="trimEnd" type="text" placeholder="Hasta HH:MM:SS"></div></div>
+              </div>
+
+              <div class="hide-for-chunked thumb-section">
+                <label>PORTADA DEL VÍDEO</label>
+                <div class="segmented">
+                  <input type="radio" name="thumbSource" id="thumb-auto" value="auto" checked><label for="thumb-auto">Automática</label>
+                  <input type="radio" name="thumbSource" id="thumb-file" value="file"><label for="thumb-file">Subir imagen</label>
+                  <input type="radio" name="thumbSource" id="thumb-url" value="url"><label for="thumb-url">Desde URL</label>
+                </div>
+                <div class="hint" id="thumbAutoHint">Se extrae un fotograma del propio vídeo.</div>
+                <div class="thumb-file-row" id="thumbFileRow">
+                  <label id="dropzone" class="dropzone" for="thumbFileInput">↑ <strong>Elige una imagen</strong><small>JPG o PNG · máximo 2 MB</small><input id="thumbFileInput" type="file" accept="image/jpeg,image/png"></label>
+                  <div id="thumbPreview" class="thumb-preview"><img id="thumbPreviewImg" alt="Vista previa"><div id="thumbPreviewInfo"></div><button type="button" id="thumbPreviewRemove">Quitar</button></div>
+                </div>
+                <div class="thumb-url-row" id="thumbUrlRow"><input id="thumbnailUrl" type="url" placeholder="https://.../imagen.jpg"></div>
+              </div>
+
+              <div class="field"><label for="playlistId">LISTA DE REPRODUCCIÓN</label><input id="playlistId" type="text" placeholder="PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"></div>
+
+              <div class="field show-for-vod"><label for="quality">CALIDAD MÁXIMA</label><select id="quality"><option value="720">720p</option><option value="1080" selected>1080p</option><option value="best">Máxima disponible</option></select></div>
+
+              <div class="hide-for-chunked">
+                <div class="field"><label for="clipCount">CLIPS CORTOS</label><input id="clipCount" type="number" min="0" max="10" value="0"></div>
+                <div class="two"><input id="clipTimestamps" type="text" placeholder="5:30, 12:45, 47:10"><select id="clipDuration"><option value="15">15 segundos</option><option value="30" selected>30 segundos</option><option value="60">60 segundos</option></select></div>
+              </div>
+            </div>
+          </details>
+
+          <button type="submit" id="submitBtn" class="btn primary submit">▶ Iniciar producción</button>
+        </form>
+
+        <aside class="panel status-panel">
+          <div class="panel-head"><div><span class="eyebrow">SEGUIMIENTO</span><h2>Estado en tiempo real</h2></div><span class="status-chip">LIVE</span></div>
+          <div class="status-display"><div class="orb"></div><div><b>GitHub Actions</b><small>Esperando un nuevo proceso</small></div></div>
+          <div id="status" role="status" class="status-message">Todo listo. Configura los datos del proyecto y pulsa «Iniciar producción».</div>
+          <div class="status-note"><b>Flujo:</b> origen → descarga/grabación → YouTube → Discord. El navegador sigue la ejecución real mediante la API de GitHub.</div>
+        </aside>
+      </section>
+
+      <section id="resultados" class="panel results-gallery" hidden>
+        <div class="panel-head"><div><span class="eyebrow">RESULTADO</span><h2 class="results-title">Producción completada</h2></div></div>
+        <div id="resultsList"></div>
+      </section>
+
+      <section id="historial" class="panel history-panel">
+        <div class="panel-head"><div><span class="eyebrow">HISTORIAL</span><h2>Últimos envíos</h2></div></div>
+        <div id="historyList" class="hint">Cargando…</div>
+      </section>
+
+      <details id="connectionDetails" class="panel connection hidden-by-default">
+        <summary id="conexion">Conexión con GitHub <span>⚙</span></summary>
+        <div class="connection-grid">
+          <div class="field"><label for="ghOwner">USUARIO U ORGANIZACIÓN</label><input id="ghOwner" type="text" placeholder="tu-usuario"></div>
+          <div class="field"><label for="ghRepo">REPOSITORIO</label><input id="ghRepo" type="text" placeholder="VOD.IS"></div>
+          <div class="field"><label for="ghBranch">RAMA</label><input id="ghBranch" type="text" value="main"></div>
+          <div class="field"><label for="ghToken">TOKEN DE ACCESO PERSONAL</label><input id="ghToken" type="password" placeholder="github_pat_..."><small>Necesita permisos de Actions y Contents de lectura/escritura.</small></div>
+          <label class="remember"><input id="rememberToken" type="checkbox" checked> Recordar en este navegador</label>
         </div>
-        <div>
-          <label for="trimEnd" class="sublabel">Hasta</label>
-          <input type="text" id="trimEnd" placeholder="HH:MM:SS" />
-        </div>
-      </div>
-      <span class="hint">Para quitar el rato muerto antes de empezar o al final. Vacío en ambos = se sube el VOD entero. Los clips y la portada se calculan sobre el vídeo ya recortado.</span>
+      </details>
+
+      <footer>VOD.IS Studio · Cada envío dispara <code>process-vod.yml</code>. El procesamiento se realiza en GitHub Actions y el runner se destruye al terminar.</footer>
     </div>
-
-    <div class="field hide-for-chunked">
-      <label>Portada del vídeo</label>
-      <div class="segmented">
-        <input type="radio" name="thumbSource" id="thumb-auto" value="auto" checked />
-        <label for="thumb-auto">Automática</label>
-        <input type="radio" name="thumbSource" id="thumb-file" value="file" />
-        <label for="thumb-file">Subir imagen</label>
-        <input type="radio" name="thumbSource" id="thumb-url" value="url" />
-        <label for="thumb-url">Desde URL</label>
-      </div>
-
-      <div class="hint" id="thumbAutoHint">Se extrae un fotograma del propio VOD (por defecto, el punto medio).</div>
-
-      <div class="thumb-file-row" id="thumbFileRow">
-        <label class="dropzone" id="dropzone" for="thumbFileInput">
-          <span class="dropzone-text"><strong>Elige una imagen</strong> o arrástrala aquí — JPG o PNG, máx. 2MB</span>
-          <input type="file" id="thumbFileInput" accept="image/jpeg,image/png" />
-        </label>
-        <div class="thumb-preview" id="thumbPreview">
-          <img id="thumbPreviewImg" alt="Vista previa de la portada" />
-          <div class="thumb-preview-info" id="thumbPreviewInfo"></div>
-          <button type="button" id="thumbPreviewRemove">Quitar</button>
-        </div>
-        <span class="hint">Se sube a tu propio repositorio para que YouTube pueda leerla, y se borra automáticamente al terminar.</span>
-      </div>
-
-      <div class="thumb-url-row" id="thumbUrlRow">
-        <input type="url" id="thumbnailUrl" placeholder="https://…/imagen.jpg" />
-      </div>
-    </div>
-
-    <div class="field">
-      <label>Visibilidad en YouTube</label>
-      <div class="segmented">
-        <input type="radio" name="privacy" id="privacy-public" value="public" />
-        <label for="privacy-public">Público</label>
-        <input type="radio" name="privacy" id="privacy-unlisted" value="unlisted" checked />
-        <label for="privacy-unlisted">Oculto</label>
-        <input type="radio" name="privacy" id="privacy-scheduled" value="scheduled" />
-        <label for="privacy-scheduled">Programado</label>
-      </div>
-      <div class="schedule-row" id="scheduleRow">
-        <label for="scheduledAt">Fecha y hora de publicación</label>
-        <input type="datetime-local" id="scheduledAt" />
-        <span class="hint">En tu zona horaria local; se convierte a UTC automáticamente.</span>
-      </div>
-    </div>
-
-    <div class="field">
-      <label for="playlistId">Lista de reproducción de YouTube (opcional)</label>
-      <input type="text" id="playlistId" placeholder="PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" />
-      <span class="hint">El ID que aparece después de <code>list=</code> en la URL de la lista. Vacío = no se añade a ninguna.</span>
-    </div>
-
-    <div class="field show-for-vod">
-      <label for="quality">Calidad máxima de descarga</label>
-      <select id="quality">
-        <option value="720">720p</option>
-        <option value="1080" selected>1080p</option>
-        <option value="best">Máxima disponible</option>
-      </select>
-      <span class="hint">Los runners de GitHub tienen disco y tiempo limitados; 1080p es un buen punto de partida para VODs largos.</span>
-    </div>
-
-    <div class="field hide-for-chunked">
-      <label for="clipCount">Clips cortos a crear</label>
-      <input type="number" id="clipCount" min="0" max="10" value="0" />
-      <span class="hint">Repartidos automáticamente a lo largo del VOD. Se ignora si rellenas las marcas manuales de abajo. No se suben a YouTube: al terminar podrás reproducirlos y descargarlos desde esta misma página. Máximo 10.</span>
-
-      <div class="field-sub">
-        <label for="clipTimestamps" class="sublabel">Marcas de tiempo manuales (opcional)</label>
-        <input type="text" id="clipTimestamps" placeholder="5:30, 12:45, 47:10" />
-        <span class="hint">Si rellenas esto, se usan estos instantes exactos en vez del reparto automático de arriba.</span>
-      </div>
-
-      <div class="field-sub">
-        <label for="clipDuration" class="sublabel">Duración de cada clip</label>
-        <select id="clipDuration">
-          <option value="15">15 segundos</option>
-          <option value="30" selected>30 segundos</option>
-          <option value="60">60 segundos</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="field">
-      <button type="submit" id="submitBtn">Enviar</button>
-    </div>
-  </form>
-
-  <div class="card results-gallery" id="resultsGallery" hidden>
-    <h2 class="results-title">Resultado</h2>
-    <div id="resultsList"></div>
-  </div>
-
-  <details class="card" id="historyDetails">
-    <summary>Historial de envíos</summary>
-    <div class="details-body">
-      <div id="historyList" class="hint">Cargando…</div>
-    </div>
-  </details>
-
-  <details class="card hidden-by-default" id="connectionDetails">
-    <summary>Conexión con GitHub</summary>
-    <div class="details-body">
-      <div class="field">
-        <label for="ghOwner">Usuario u organización</label>
-        <input type="text" id="ghOwner" placeholder="tu-usuario" />
-      </div>
-      <div class="field">
-        <label for="ghRepo">Repositorio</label>
-        <input type="text" id="ghRepo" placeholder="vod2youtube-web" />
-      </div>
-      <div class="field">
-        <label for="ghBranch">Rama</label>
-        <input type="text" id="ghBranch" placeholder="main" value="main" />
-      </div>
-      <div class="field">
-        <label for="ghToken">Token de acceso personal</label>
-        <input type="password" id="ghToken" placeholder="ghp_… o github_pat_…" />
-        <span class="hint">Necesita permisos de Actions (leer/escribir) y de Contenido (leer/escribir) sobre este repositorio. Se usa directamente desde tu navegador hacia GitHub; no pasa por ningún otro servidor.</span>
-        <div class="checkbox-row">
-          <input type="checkbox" id="rememberToken" checked />
-          <label for="rememberToken">Recordar en este navegador</label>
-        </div>
-      </div>
-      <p class="hint">Esta sección solo se ve añadiendo <code>?config</code> al final del enlace de esta página. Compártelo solo con quien deba configurarlo.</p>
-    </div>
-  </details>
-
-  <p id="status" role="status"></p>
-
-  <footer>
-    Cada envío dispara el workflow <code>process-vod.yml</code> en tu repositorio.
-    El vídeo nunca se guarda en ningún sitio permanente: el runner de GitHub Actions se destruye al terminar.
-  </footer>
-
+  </main>
 </div>
+<script>
+document.getElementById('focusLive').addEventListener('click', () => {
+  document.getElementById('mode-live-simple').checked = true;
+  document.getElementById('mode-live-simple').dispatchEvent(new Event('change', {bubbles:true}));
+  document.getElementById('produccion').scrollIntoView({behavior:'smooth'});
+});
+</script>
 <script src="app.js"></script>
 </body>
 </html>
