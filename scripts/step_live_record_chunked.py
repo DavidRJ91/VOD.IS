@@ -101,8 +101,7 @@ def main() -> None:
     os.makedirs("downloads", exist_ok=True)
     parts: list[dict] = []
     start_time = time.monotonic()
-    part_num = 0
-    first_chunk = True
+    attempt = 0  # contador de intentos de captura (para tag único en disco)
     stream_ended = False
 
     while True:
@@ -112,32 +111,47 @@ def main() -> None:
             print("Presupuesto de tiempo de esta ejecución agotado; se termina aquí.")
             break
 
-        if not first_chunk and not is_channel_live(channel_url):
+        # A partir del segundo intento, si el canal ya no está en directo, terminamos.
+        # Se desacopla de `from_start` para no reintentar indefinidamente tras un fallo.
+        if attempt > 0 and not is_channel_live(channel_url):
             print("El directo ya ha terminado.")
             stream_ended = True
             break
 
-        part_num += 1
-        this_chunk_max = min(chunk_seconds, remaining)
-        print(f"Grabando parte {part_num} (hasta {this_chunk_max / 60:.0f} min)…")
+        attempt += 1
+        # from_start solo mientras no haya ninguna parte subida con éxito.
+        # Así, si la primera captura falla (retorna None) seguimos con
+        # --live-from-start en el siguiente intento y no perdemos el backlog
+        # (ej. directo lleva 1h en marcha → primera parte debe traer desde el minuto 0).
+        need_from_start = len(parts) == 0
+
+        # El primer trozo necesita presupuesto extra para ponerse al día con el
+        # backlog: si limitamos a chunk_seconds (25 min) y el directo lleva 1h,
+        # el SIGINT corta el backlog a mitad. Le damos hasta 90 min o 3× chunk.
+        if need_from_start:
+            first_budget = max(chunk_seconds * 3, 90 * 60)
+            this_chunk_max = min(first_budget, remaining)
+        else:
+            this_chunk_max = min(chunk_seconds, remaining)
+        next_part_number = len(parts) + 1
+        print(f"Grabando parte {next_part_number} (intento {attempt}, hasta {this_chunk_max / 60:.0f} min, from_start={need_from_start})…")
 
         result = capture_live_segment(
             channel_url,
             output_dir="downloads",
             max_seconds=this_chunk_max,
-            from_start=first_chunk,
-            tag=f"parte{part_num}",
+            from_start=need_from_start,
+            tag=f"parte{attempt}",
         )
-        first_chunk = False
 
         if result is None:
-            print(f"Aviso: no se pudo capturar la parte {part_num}.")
+            print(f"Aviso: no se pudo capturar la parte {next_part_number} (intento {attempt}).")
             if not is_channel_live(channel_url):
                 stream_ended = True
                 break
             continue
 
-        title = f"{base_title or result.title} — Parte {part_num}"[:100]
+        title = f"{base_title or result.title} — Parte {next_part_number}"[:100]
         try:
             video_id = upload_video(
                 youtube,
@@ -150,23 +164,25 @@ def main() -> None:
                 scheduled_at=scheduled_at,
             )
             video_url = f"https://youtu.be/{video_id}"
+            # Solo avanzamos numeración en subidas exitosas → si parte 1 falla
+            # al subir, la siguiente que sí se sube sigue siendo "Parte 1".
             parts.append({
                 "video_id": video_id,
                 "video_url": video_url,
-                "part_number": part_num,
+                "part_number": next_part_number,
                 "ended_naturally": result.ended_naturally,
             })
-            print(f"Parte {part_num} subida: {video_url}")
+            print(f"Parte {next_part_number} subida: {video_url}")
             notify_discord({
-                "title": f"Parte {part_num} subida",
+                "title": f"Parte {next_part_number} subida",
                 "description": f"**{title}**",
                 "color": 0x1D9E75,
                 "fields": [{"name": "YouTube", "value": video_url, "inline": False}],
             })
         except YouTubeError as exc:
-            print(f"Aviso: no se pudo subir la parte {part_num} ({exc}).")
+            print(f"Aviso: no se pudo subir la parte {next_part_number} ({exc}).")
             notify_discord({
-                "title": f"Fallo al subir la parte {part_num}",
+                "title": f"Fallo al subir la parte {next_part_number}",
                 "description": f"**{title}**",
                 "color": 0xE24B4A,
                 "fields": [{"name": "Error", "value": str(exc)[:1000], "inline": False}],
