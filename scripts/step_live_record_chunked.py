@@ -102,6 +102,10 @@ def main() -> None:
     parts: list[dict] = []
     start_time = time.monotonic()
     attempt = 0  # contador de intentos de captura (para tag único en disco)
+    consecutive_failures = 0
+    backlog_give_up = False  # si True, deja de intentar --live-from-start tras varios fallos seguidos
+    MAX_CONSECUTIVE_FAILURES = 5  # evita bucle infinito si el canal no entrega backlog
+    RETRY_DELAY_SECONDS = 15
     stream_ended = False
 
     while True:
@@ -119,11 +123,14 @@ def main() -> None:
             break
 
         attempt += 1
-        # from_start solo mientras no haya ninguna parte subida con éxito.
+        # from_start solo mientras no haya ninguna parte subida con éxito y no
+        # hayamos abandonado el backlog tras varios fallos seguidos.
         # Así, si la primera captura falla (retorna None) seguimos con
         # --live-from-start en el siguiente intento y no perdemos el backlog
         # (ej. directo lleva 1h en marcha → primera parte debe traer desde el minuto 0).
-        need_from_start = len(parts) == 0
+        # Tras MAX_CONSECUTIVE_FAILURES con from_start, probamos sin backlog
+        # para no quedarnos en bucle infinito si el canal no lo soporta.
+        need_from_start = len(parts) == 0 and not backlog_give_up
 
         # El primer trozo necesita presupuesto extra para ponerse al día con el
         # backlog: si limitamos a chunk_seconds (25 min) y el directo lleva 1h,
@@ -145,11 +152,26 @@ def main() -> None:
         )
 
         if result is None:
-            print(f"Aviso: no se pudo capturar la parte {next_part_number} (intento {attempt}).")
+            consecutive_failures += 1
+            print(f"Aviso: no se pudo capturar la parte {next_part_number} (intento {attempt}, fallo {consecutive_failures}/{MAX_CONSECUTIVE_FAILURES}).")
             if not is_channel_live(channel_url):
+                print("is_channel_live=False tras fallo -> el directo no esta en directo.")
                 stream_ended = True
                 break
+            if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                if need_from_start and not backlog_give_up:
+                    print("No se pudo capturar desde el inicio tras varios intentos - se reintenta sin --live-from-start (solo desde ahora).")
+                    backlog_give_up = True
+                    consecutive_failures = 0  # resetea para los intentos sin backlog
+                    time.sleep(RETRY_DELAY_SECONDS)
+                    continue
+                print(f"Demasiados fallos seguidos ({MAX_CONSECUTIVE_FAILURES}) - se aborta para no quemar el runner.")
+                break
+            print(f"Reintentando en {RETRY_DELAY_SECONDS}s…")
+            time.sleep(RETRY_DELAY_SECONDS)
             continue
+        # éxito → resetea contador
+        consecutive_failures = 0
 
         title = f"{base_title or result.title} — Parte {next_part_number}"[:100]
         try:
