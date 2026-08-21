@@ -41,6 +41,9 @@
     connectionDetails: document.getElementById("connectionDetails"),
     status: document.getElementById("status"),
     stopwatchTime: document.getElementById("stopwatchTime"),
+    cancelBtn: document.getElementById("cancelBtn"),
+    cleanupBtn: document.getElementById("cleanupBtn"),
+    cleanupStatus: document.getElementById("cleanupStatus"),
     resultsGallery: document.getElementById("resultsGallery"),
     resultsList: document.getElementById("resultsList"),
     historyList: document.getElementById("historyList"),
@@ -70,6 +73,9 @@
   let selectedFile = null; // { name, size, type, base64 }
   let stopwatchHandle = null;
   let stopwatchStartMs = null;
+  let currentRun = null;
+  let currentConn = null;
+  let cancelRequested = false;
 
   // ---------------------------------------------------------------- helpers
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -458,11 +464,94 @@
 
   async function deleteFromRepo(conn, path, sha) {
     const url = `https://api.github.com/repos/${conn.owner}/${conn.repo}/contents/${path}`;
-    await fetch(url, {
+    const res = await fetch(url, {
       method: "DELETE",
       headers: ghHeaders(conn.token, true),
       body: JSON.stringify({ message: `chore: limpiar archivo temporal (${path})`, sha, branch: conn.branch }),
     });
+    if (!res.ok) {
+      let detail = "";
+      try { detail = (await res.json()).message || ""; } catch (_) {}
+      throw new Error(`No se pudo borrar ${path} (GitHub ${res.status}${detail ? `: ${detail}` : ""})`);
+    }
+  }
+
+  async function listRepoContents(conn, path) {
+    const url = `https://api.github.com/repos/${conn.owner}/${conn.repo}/contents/${path}?ref=${conn.branch}`;
+    const res = await fetch(url, { headers: ghHeaders(conn.token, false) });
+    if (res.status === 404) return [];
+    if (!res.ok) throw new Error(`No se pudo listar ${path} (GitHub ${res.status})`);
+    const data = await res.json();
+    return Array.isArray(data) ? data : [data];
+  }
+
+  async function cleanupClipsAndThumbs() {
+    const conn = {
+      owner: els.ghOwner.value.trim(),
+      repo: els.ghRepo.value.trim(),
+      branch: els.ghBranch.value.trim() || "main",
+      token: els.ghToken.value.trim(),
+    };
+    if (!conn.owner || !conn.repo || !conn.token) {
+      setStatus("Completa usuario, repositorio y token en Conexion con GitHub (?config) para limpiar.", "error");
+      els.connectionDetails.open = true;
+      return;
+    }
+    if (!confirm("¿Borrar todos los clips (clip_output/) y miniaturas (uploads/thumb-*) del repositorio? Esta acción no se puede deshacer.")) return;
+
+    els.cleanupBtn.disabled = true;
+    els.cleanupBtn.textContent = "Limpiando…";
+    els.cleanupStatus.textContent = "Buscando archivos…";
+    let deleted = 0;
+    let errors = 0;
+    try {
+      // clip_output/ puede tener subcarpetas por run_id
+      let clipRoot = [];
+      try { clipRoot = await listRepoContents(conn, "clip_output"); } catch (_) { clipRoot = []; }
+      for (const entry of clipRoot) {
+        if (entry.type === "dir") {
+          let files = [];
+          try { files = await listRepoContents(conn, entry.path); } catch (_) { continue; }
+          for (const f of files) {
+            if (f.type !== "file") continue;
+            els.cleanupStatus.textContent = `Borrando ${f.path}…`;
+            try { await deleteFromRepo(conn, f.path, f.sha); deleted += 1; } catch (e) { errors += 1; }
+            await sleep(300);
+          }
+        } else if (entry.type === "file") {
+          els.cleanupStatus.textContent = `Borrando ${entry.path}…`;
+          try { await deleteFromRepo(conn, entry.path, entry.sha); deleted += 1; } catch (e) { errors += 1; }
+          await sleep(300);
+        }
+      }
+      // uploads/thumb-*
+      let uploads = [];
+      try { uploads = await listRepoContents(conn, "uploads"); } catch (_) { uploads = []; }
+      for (const f of uploads) {
+        if (f.type !== "file" || !f.name.startsWith("thumb-")) continue;
+        els.cleanupStatus.textContent = `Borrando ${f.path}…`;
+        try { await deleteFromRepo(conn, f.path, f.sha); deleted += 1; } catch (e) { errors += 1; }
+        await sleep(300);
+      }
+      if (deleted === 0 && errors === 0) {
+        els.cleanupStatus.textContent = "No había clips ni miniaturas que borrar.";
+        setStatus("Nada que limpiar — clip_output/ y uploads/ ya están vacíos.", "success");
+      } else if (errors === 0) {
+        els.cleanupStatus.textContent = `Eliminados ${deleted} archivos correctamente.`;
+        setStatus(`Limpieza completada: ${deleted} archivos borrados de GitHub.`, "success");
+      } else {
+        els.cleanupStatus.textContent = `Eliminados ${deleted}, ${errors} errores. Revisa la consola.`;
+        setStatus(`Limpieza parcial: ${deleted} borrados, ${errors} fallos.`, "error");
+      }
+      // Refresca historial por si había clips huérfanos
+      try { await loadHistory(conn); } catch (_) {}
+    } catch (err) {
+      els.cleanupStatus.textContent = `Error: ${err.message}`;
+      setStatus(`No se pudo limpiar: ${err.message}`, "error");
+    } finally {
+      els.cleanupBtn.disabled = false;
+      els.cleanupBtn.textContent = "🗑 Limpiar clips y miniaturas";
+    }
   }
 
   function formatMB(bytes) {
@@ -589,13 +678,51 @@
     }
   }
 
+  // ------------------------------------------------------------- cancelar
+  function setCancelVisible(visible) {
+    if (!els.cancelBtn) return;
+    els.cancelBtn.hidden = !visible;
+    els.cancelBtn.disabled = !visible;
+    if (visible) els.cancelBtn.textContent = "✕ Cancelar proceso";
+  }
+
+  async function cancelCurrentRun() {
+    if (!currentConn || !currentRun || cancelRequested) return;
+    cancelRequested = true;
+    els.cancelBtn.disabled = true;
+    els.cancelBtn.textContent = "Cancelando…";
+    setStatus("Cancelando proceso en GitHub…", "error");
+    try {
+      const url = `https://api.github.com/repos/${currentConn.owner}/${currentConn.repo}/actions/runs/${currentRun.id}/cancel`;
+      const res = await fetch(url, { method: "POST", headers: ghHeaders(currentConn.token, false) });
+      if (res.status !== 202 && res.status !== 204) {
+        let detail = "";
+        try { detail = (await res.json()).message || ""; } catch (_) {}
+        throw new Error(`GitHub respondió ${res.status}${detail ? `: ${detail}` : ""}`);
+      }
+      setStatus("Cancelación enviada — GitHub detendrá el runner en segundos.", "error");
+    } catch (err) {
+      cancelRequested = false;
+      els.cancelBtn.disabled = false;
+      els.cancelBtn.textContent = "✕ Cancelar proceso";
+      setStatus(`No se pudo cancelar: ${err.message}`, "error");
+    }
+  }
+
   // ------------------------------------------------------------- seguimiento
   async function pollRun(conn, run) {
+    currentRun = run;
+    currentConn = conn;
+    cancelRequested = false;
+    setCancelVisible(true);
     setStatusHtml(`En marcha — <a href="${run.html_url}" target="_blank" rel="noopener">ver registro en GitHub</a>`);
 
     const maxIterations = 5100;
     for (let i = 0; i < maxIterations; i += 1) {
       await sleep(4000);
+      if (cancelRequested) {
+        // Sigue poll para detectar el estado cancelled y cerrar UI limpio
+      }
 
       let jobs;
       try {
@@ -614,8 +741,19 @@
       });
 
       if (job.status === "completed") {
-        const ok = job.conclusion === "success";
-        stopStopwatch(ok ? "success" : "error");
+        const conclusion = job.conclusion;
+        const ok = conclusion === "success";
+        const cancelled = conclusion === "cancelled";
+        stopStopwatch(cancelled ? "error" : ok ? "success" : "error");
+        setCancelVisible(false);
+        currentRun = null;
+        if (cancelled || cancelRequested) {
+          setStatusHtml(
+            `Cancelado ✕ — <a href="${run.html_url}" target="_blank" rel="noopener">ver registro</a>`,
+            "error"
+          );
+          return;
+        }
         setStatusHtml(
           `${ok ? "Completado ✅" : "Falló ❌"} — <a href="${run.html_url}" target="_blank" rel="noopener">ver registro</a>. Discord ya debería tener el aviso.`,
           ok ? "success" : "error"
@@ -625,6 +763,8 @@
       }
     }
 
+    setCancelVisible(false);
+    currentRun = null;
     setStatus("Dejé de seguirlo tras un buen rato — revisa el enlace de arriba o Discord para el resultado final.");
   }
 
@@ -740,6 +880,10 @@
     resetLamps();
     setLamp("origen", "done");
     els.submitBtn.disabled = true;
+    setCancelVisible(false);
+    currentRun = null;
+    currentConn = null;
+    cancelRequested = false;
     els.resultsGallery.hidden = true;
     els.resultsGallery.classList.remove("visible");
     els.resultsList.innerHTML = "";
@@ -863,6 +1007,9 @@
     els.saveTemplateBtn.addEventListener("click", saveTemplate);
     els.loadTemplateBtn.addEventListener("click", loadTemplate);
     initRetryButton();
+
+    if (els.cancelBtn) els.cancelBtn.addEventListener("click", cancelCurrentRun);
+    if (els.cleanupBtn) els.cleanupBtn.addEventListener("click", cleanupClipsAndThumbs);
 
     els.form.addEventListener("submit", handleSubmit);
 

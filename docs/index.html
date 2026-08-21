@@ -141,6 +141,7 @@
           <div class="panel-head"><div><span class="eyebrow">SEGUIMIENTO</span><h2>Estado en tiempo real</h2></div><span class="status-chip">LIVE</span></div>
           <div class="status-display"><div class="orb"></div><div><b>GitHub Actions</b><small>Esperando un nuevo proceso</small></div></div>
           <div id="status" role="status" class="status-message">Todo listo. Configura los datos del proyecto y pulsa «Iniciar producción».</div>
+          <button type="button" id="cancelBtn" class="btn secondary" hidden style="margin-top:12px;width:100%;border-color:#fb7185;color:#fb7185">✕ Cancelar proceso</button>
           <div class="status-note"><b>Flujo:</b> origen → descarga/grabación → YouTube → Discord. El navegador sigue la ejecución real mediante la API de GitHub.</div>
         </aside>
       </section>
@@ -153,6 +154,13 @@
       <section id="historial" class="panel history-panel">
         <div class="panel-head"><div><span class="eyebrow">HISTORIAL</span><h2>Últimos envíos</h2></div></div>
         <div id="historyList" class="hint">Cargando…</div>
+      </section>
+
+      <section id="mantenimiento" class="panel">
+        <div class="panel-head"><div><span class="eyebrow">MANTENIMIENTO</span><h2>Limpiar repositorio</h2></div></div>
+        <p class="hint">Borra todos los clips generados (<code>clip_output/</code>) y miniaturas temporales (<code>uploads/thumb-*</code>) que queden en GitHub. Usa el mismo token que para producir.</p>
+        <button type="button" id="cleanupBtn" class="btn secondary" style="width:100%">🗑 Limpiar clips y miniaturas</button>
+        <div id="cleanupStatus" class="hint" style="margin-top:8px"></div>
       </section>
 
       <details id="connectionDetails" class="panel connection hidden-by-default">
